@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion Cours Vacants - Application</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide-react@latest/dist/umd/lucide-react.min.js"></script>
+    <style>
+        body { 
+            margin: 0; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        }
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        const { useState, useEffect, useMemo } = React;
+        
+        // Charger les composants depuis les fichiers TSX
+        // Note: En production, utilisez un bundler comme Vite ou Webpack
+        // Pour le développement, nous allons intégrer le code directement
+        
+        // Import du composant ImportCoursVacants
+        import('./import-cours-vacants.tsx').then(module => {
+            const ImportCoursVacants = module.default;
+            // Import du composant CoursVacantsView
+            import('./cours-vacants-view.tsx').then(module2 => {
+                const CoursVacantsView = module2.default;
+                
+                // Application principale
+                const App = () => {
+                    const [view, setView] = useState('import'); // 'import' ou 'liste'
+                    
+                    return (
+                        <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-100">
+                            <nav className="bg-white shadow-md border-b border-gray-200 px-6 py-4">
+                                <div className="max-w-7xl mx-auto flex items-center justify-between">
+                                    <h1 className="text-2xl font-bold text-gray-900">
+                                        Gestion Cours Vacants
+                                    </h1>
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => setView('import')}
+                                            className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                                                view === 'import'
+                                                    ? 'bg-orange-600 text-white'
+                                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                            }`}
+                                        >
+                                            Import
+                                        </button>
+                                        <button
+                                            onClick={() => setView('liste')}
+                                            className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                                                view === 'liste'
+                                                    ? 'bg-orange-600 text-white'
+                                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                            }`}
+                                        >
+                                            Liste des cours
+                                        </button>
+                                    </div>
+                                </div>
+                            </nav>
+                            
+                            <div className="max-w-7xl mx-auto p-6">
+                                {view === 'import' && <ImportCoursVacants />}
+                                {view === 'liste' && <CoursVacantsView />}
+                            </div>
+                        </div>
+                    );
+                };
+                
+                ReactDOM.render(<App />, document.getElementById('root'));
+            }).catch(err => {
+                console.error('Erreur chargement cours-vacants-view:', err);
+                // Fallback: afficher seulement l'import
+                ReactDOM.render(<ImportCoursVacants />, document.getElementById('root'));
+            });
+        }).catch(err => {
+            console.error('Erreur chargement import-cours-vacants:', err);
+            // Afficher un message d'erreur
+            document.getElementById('root').innerHTML = `
+                <div class="min-h-screen bg-gray-100 flex items-center justify-center p-6">
+                    <div class="bg-white rounded-lg shadow-lg p-8 max-w-md">
+                        <h1 class="text-2xl font-bold text-red-600 mb-4">Erreur de chargement</h1>
+                        <p class="text-gray-700 mb-4">Les modules TSX ne peuvent pas être chargés directement dans le navigateur.</p>
+                        <p class="text-sm text-gray-600">Pour utiliser cette application, vous devez :</p>
+                        <ul class="list-disc list-inside text-sm text-gray-600 mt-2 space-y-1">
+                            <li>Utiliser un bundler (Vite, Webpack, etc.)</li>
+                            <li>Ou utiliser les fichiers HTML standalone existants</li>
+                        </ul>
+                        <div class="mt-6">
+                            <a href="app-cours-vacants-complete.html" class="text-blue-600 hover:underline">
+                                → Ouvrir app-cours-vacants-complete.html
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+    </script>
+</body>
+</html>

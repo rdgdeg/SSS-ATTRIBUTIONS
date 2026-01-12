@@ -1,0 +1,1488 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion Complète Cours Vacants</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body { 
+            margin: 0; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .animate-spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0,0,0,0.15); }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        const SUPABASE_URL = 'https://dhuuduphwvxrecfqvbbw.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRodXVkdXBod3Z4cmVjZnF2YmJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgyMTEyODksImV4cCI6MjA4Mzc4NzI4OX0.RyURwma808AT0PqFIWXpe6NIdIdoscYN5GiC8Dh7Ktk';
+
+        // Initialiser Supabase directement (déjà chargé via script tag)
+        const getSupabase = () => {
+            if (!window.supabase || !window.supabase.createClient) {
+                throw new Error('Supabase n\'est pas chargé. Vérifiez que le script est bien inclus.');
+            }
+            if (!window.supabaseClient) {
+                window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            }
+            return window.supabaseClient;
+        };
+
+        const parseVolume = (value) => {
+            if (!value || value === '' || String(value).includes('#')) return 0;
+            const parsed = parseFloat(value);
+            return isNaN(parsed) ? 0 : parsed;
+        };
+
+        const App = () => {
+            const [view, setView] = useState('liste');
+            const [selectedCours, setSelectedCours] = useState(null);
+            const [coursData, setCoursData] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+
+            useEffect(() => {
+                loadCours();
+            }, []);
+
+            const loadCours = async () => {
+                try {
+                    setLoading(true);
+                    setError(null);
+                    const supabase = getSupabase();
+
+                    const { data, error: fetchError } = await supabase
+                        .from('cours_vacants')
+                        .select('*')
+                        .order('code_cours', { ascending: true });
+
+                    if (fetchError) {
+                        console.error('Erreur Supabase:', fetchError);
+                        throw fetchError;
+                    }
+                    
+                    console.log('Données brutes reçues:', data?.length || 0, 'cours');
+                    
+                    // Afficher un exemple de cours pour vérifier les volumes
+                    if (data && data.length > 0) {
+                        console.log('Exemple de cours chargé:', {
+                            code: data[0].code_cours,
+                            vol1_total: data[0].vol1_total,
+                            vol2_total: data[0].vol2_total,
+                            vol1_non_attribue: data[0].vol1_non_attribue,
+                            vol2_non_attribue: data[0].vol2_non_attribue,
+                            toutes_les_colonnes: Object.keys(data[0])
+                        });
+                    }
+                    
+                    // Parser les JSONB fields
+                    const parsedData = (data || []).map(cours => {
+                        let enseignants = [];
+                        let candidatures = [];
+                        
+                        try {
+                            if (typeof cours.enseignants_pressentis === 'string') {
+                                enseignants = JSON.parse(cours.enseignants_pressentis || '[]');
+                            } else if (Array.isArray(cours.enseignants_pressentis)) {
+                                enseignants = cours.enseignants_pressentis;
+                            }
+                        } catch (e) {
+                            console.warn('Erreur parsing enseignants_pressentis:', e);
+                            enseignants = [];
+                        }
+                        
+                        try {
+                            if (typeof cours.candidatures === 'string') {
+                                candidatures = JSON.parse(cours.candidatures || '[]');
+                            } else if (Array.isArray(cours.candidatures)) {
+                                candidatures = cours.candidatures;
+                            }
+                        } catch (e) {
+                            console.warn('Erreur parsing candidatures:', e);
+                            candidatures = [];
+                        }
+                        
+                        return {
+                            ...cours,
+                            enseignants_pressentis: enseignants,
+                            candidatures: candidatures
+                        };
+                    });
+
+                    console.log('Cours chargés:', parsedData.length);
+                    setCoursData(parsedData);
+                } catch (err) {
+                    console.error('Erreur chargement:', err);
+                    setError('Erreur lors du chargement: ' + err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleSaveCours = async (coursToSave) => {
+                try {
+                    setError(null);
+                    const supabase = getSupabase();
+
+                    // Supabase accepte directement les tableaux pour les colonnes JSONB
+                    const dataToSave = {
+                        ...coursToSave,
+                        enseignants_pressentis: Array.isArray(coursToSave.enseignants_pressentis)
+                            ? coursToSave.enseignants_pressentis
+                            : [],
+                        candidatures: Array.isArray(coursToSave.candidatures)
+                            ? coursToSave.candidatures
+                            : []
+                    };
+
+                    if (coursToSave.id) {
+                        const { error: updateError } = await supabase
+                            .from('cours_vacants')
+                            .update(dataToSave)
+                            .eq('id', coursToSave.id);
+                        if (updateError) throw updateError;
+                    } else {
+                        const { error: insertError } = await supabase
+                            .from('cours_vacants')
+                            .insert(dataToSave);
+                        if (insertError) throw insertError;
+                    }
+                    
+                    await loadCours();
+                    setView('liste');
+                    setSelectedCours(null);
+                    alert('Cours enregistré avec succès !');
+                } catch (err) {
+                    console.error('Erreur sauvegarde:', err);
+                    setError('Erreur lors de la sauvegarde: ' + err.message);
+                    alert('Erreur: ' + err.message);
+                }
+            };
+
+            const handleDeleteCours = async (id) => {
+                if (!confirm('Êtes-vous sûr de vouloir supprimer ce cours ?')) return;
+                
+                try {
+                    const supabase = getSupabase();
+                    const { error } = await supabase
+                        .from('cours_vacants')
+                        .delete()
+                        .eq('id', id);
+                    
+                    if (error) throw error;
+                    await loadCours();
+                    alert('Cours supprimé avec succès !');
+                } catch (err) {
+                    alert('Erreur lors de la suppression: ' + err.message);
+                }
+            };
+
+            if (loading) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+                        <div className="text-center">
+                            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                            <p className="text-xl font-semibold text-gray-700">Chargement...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen">
+                    <nav className="glass-effect shadow-xl mb-8 sticky top-0 z-50">
+                        <div className="max-w-7xl mx-auto px-6 py-5">
+                            <div className="flex items-center justify-between flex-wrap gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl flex items-center justify-center text-2xl shadow-lg">
+                                        📚
+                                    </div>
+                                    <div>
+                                        <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                                            Gestion Cours Vacants
+                                        </h1>
+                                        <p className="text-sm text-gray-600">Application complète de gestion</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-3 flex-wrap">
+                                    <button
+                                        onClick={() => { setView('liste'); setSelectedCours(null); }}
+                                        className={`px-5 py-2.5 rounded-xl font-semibold transition-all duration-200 shadow-md ${
+                                            view === 'liste' 
+                                                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg scale-105' 
+                                                : 'bg-white text-gray-700 hover:bg-gray-50 hover:shadow-lg'
+                                        }`}
+                                    >
+                                        📋 Liste
+                                    </button>
+                                    <button
+                                        onClick={() => { setView('import'); setSelectedCours(null); }}
+                                        className={`px-5 py-2.5 rounded-xl font-semibold transition-all duration-200 shadow-md ${
+                                            view === 'import' 
+                                                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg scale-105' 
+                                                : 'bg-white text-gray-700 hover:bg-gray-50 hover:shadow-lg'
+                                        }`}
+                                    >
+                                        📥 Import Excel
+                                    </button>
+                                    <button
+                                        onClick={() => { setView('nouveau'); setSelectedCours(null); }}
+                                        className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-md hover:shadow-lg"
+                                    >
+                                        ➕ Nouveau Cours
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </nav>
+
+                    {error && (
+                        <div className="max-w-7xl mx-auto px-6 mb-6 fade-in">
+                            <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-5 py-4 rounded-lg shadow-md flex items-center gap-3">
+                                <span className="text-2xl">⚠️</span>
+                                <div className="flex-1">
+                                    <p className="font-semibold">Erreur</p>
+                                    <p>{error}</p>
+                                </div>
+                                <button 
+                                    onClick={() => setError(null)}
+                                    className="text-red-500 hover:text-red-700 font-bold text-xl"
+                                >
+                                    ×
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="max-w-7xl mx-auto px-6 pb-12">
+                        {view === 'liste' && (
+                            <ListeCours 
+                                coursData={coursData}
+                                onSelectCours={(cours) => { setSelectedCours(cours); setView('detail'); }}
+                                onDeleteCours={handleDeleteCours}
+                                onRefresh={loadCours}
+                            />
+                        )}
+                        {view === 'detail' && selectedCours && (
+                            <DetailCours 
+                                cours={selectedCours}
+                                onSave={handleSaveCours}
+                                onCancel={() => { setView('liste'); setSelectedCours(null); }}
+                            />
+                        )}
+                        {view === 'nouveau' && (
+                            <DetailCours 
+                                cours={null}
+                                onSave={handleSaveCours}
+                                onCancel={() => { setView('liste'); setSelectedCours(null); }}
+                            />
+                        )}
+                        {view === 'import' && (
+                            <ImportCours onImportComplete={loadCours} />
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const ListeCours = ({ coursData, onSelectCours, onDeleteCours, onRefresh }) => {
+            const [searchTerm, setSearchTerm] = useState('');
+            const [filterDpt, setFilterDpt] = useState('');
+            const [filterSource, setFilterSource] = useState('');
+            const [filterPublication, setFilterPublication] = useState('');
+
+            const departements = useMemo(() => {
+                return [...new Set(coursData.map(c => c.dpt_attribution).filter(d => d))].sort();
+            }, [coursData]);
+
+            const filteredCours = useMemo(() => {
+                let filtered = [...coursData];
+                
+                console.log('Filtrage - Total cours disponibles:', coursData.length);
+                console.log('Filtres actifs:', { 
+                    searchTerm: searchTerm || '(aucun)', 
+                    filterDpt: filterDpt || '(aucun)', 
+                    filterSource: filterSource || '(aucun)', 
+                    filterPublication: filterPublication || '(aucun)' 
+                });
+
+                if (searchTerm) {
+                    const term = searchTerm.toLowerCase();
+                    const before = filtered.length;
+                    filtered = filtered.filter(c => 
+                        (c.code_cours && c.code_cours.toLowerCase().includes(term)) ||
+                        (c.intitule && c.intitule?.toLowerCase().includes(term))
+                    );
+                    console.log(`Après recherche "${searchTerm}": ${before} -> ${filtered.length}`);
+                }
+
+                if (filterDpt) {
+                    const before = filtered.length;
+                    filtered = filtered.filter(c => c.dpt_attribution === filterDpt);
+                    console.log(`Après filtre département "${filterDpt}": ${before} -> ${filtered.length}`);
+                }
+
+                if (filterSource === 'importe') {
+                    const before = filtered.length;
+                    filtered = filtered.filter(c => c.source === 'importe' || !c.source);
+                    console.log(`Après filtre source "importe": ${before} -> ${filtered.length}`);
+                } else if (filterSource === 'manuel') {
+                    const before = filtered.length;
+                    filtered = filtered.filter(c => c.source === 'manuel');
+                    console.log(`Après filtre source "manuel": ${before} -> ${filtered.length}`);
+                }
+
+                if (filterPublication === 'a_publier') {
+                    const before = filtered.length;
+                    filtered = filtered.filter(c => c.a_publier === true);
+                    console.log(`Après filtre "à publier": ${before} -> ${filtered.length}`);
+                } else if (filterPublication === 'ne_pas_publier') {
+                    const before = filtered.length;
+                    filtered = filtered.filter(c => c.a_publier === false);
+                    console.log(`Après filtre "ne pas publier": ${before} -> ${filtered.length}`);
+                }
+
+                console.log('Résultat final du filtrage:', filtered.length, 'cours');
+                return filtered;
+            }, [coursData, searchTerm, filterDpt, filterSource, filterPublication]);
+
+            const stats = useMemo(() => {
+                return {
+                    total: coursData.length,
+                    vacants: coursData.filter(c => (parseVolume(c.vol1_non_attribue) || 0) > 0 || (parseVolume(c.vol2_non_attribue) || 0) > 0).length,
+                    a_publier: coursData.filter(c => c.a_publier === true).length,
+                    manuels: coursData.filter(c => c.source === 'manuel').length
+                };
+            }, [coursData]);
+
+            return (
+                <div className="glass-effect rounded-2xl shadow-2xl p-8 fade-in">
+                    <div className="flex items-center justify-between mb-8">
+                        <div>
+                            <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent mb-2">
+                                Liste des Cours Vacants
+                            </h2>
+                            <p className="text-gray-600">Gérez et suivez tous vos cours vacants</p>
+                        </div>
+                        <button
+                            onClick={onRefresh}
+                            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                        >
+                            🔄 Actualiser
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-2xl shadow-lg card-hover">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="text-4xl font-bold">{stats.total}</div>
+                                <div className="text-3xl opacity-80">📚</div>
+                            </div>
+                            <div className="text-blue-100 font-medium">Total cours</div>
+                        </div>
+                        <div className="bg-gradient-to-br from-orange-500 to-red-500 text-white p-6 rounded-2xl shadow-lg card-hover">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="text-4xl font-bold">{stats.vacants}</div>
+                                <div className="text-3xl opacity-80">⚠️</div>
+                            </div>
+                            <div className="text-orange-100 font-medium">Cours vacants</div>
+                        </div>
+                        <div className="bg-gradient-to-br from-green-500 to-emerald-600 text-white p-6 rounded-2xl shadow-lg card-hover">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="text-4xl font-bold">{stats.a_publier}</div>
+                                <div className="text-3xl opacity-80">✅</div>
+                            </div>
+                            <div className="text-green-100 font-medium">À publier</div>
+                        </div>
+                        <div className="bg-gradient-to-br from-purple-500 to-pink-500 text-white p-6 rounded-2xl shadow-lg card-hover">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="text-4xl font-bold">{stats.manuels}</div>
+                                <div className="text-3xl opacity-80">✏️</div>
+                            </div>
+                            <div className="text-purple-100 font-medium">Ajoutés manuellement</div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                        <input
+                            type="text"
+                            placeholder="🔍 Rechercher par code ou intitulé..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        <select
+                            value={filterDpt}
+                            onChange={(e) => setFilterDpt(e.target.value)}
+                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                            <option value="">Tous les départements</option>
+                            {departements.map(dpt => (
+                                <option key={dpt} value={dpt}>{dpt}</option>
+                            ))}
+                        </select>
+                        <select
+                            value={filterSource}
+                            onChange={(e) => setFilterSource(e.target.value)}
+                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                            <option value="">Toutes les sources</option>
+                            <option value="importe">📥 Cours importés</option>
+                            <option value="manuel">✏️ Cours ajoutés manuellement</option>
+                        </select>
+                        <select
+                            value={filterPublication}
+                            onChange={(e) => setFilterPublication(e.target.value)}
+                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                            <option value="">Tous</option>
+                            <option value="a_publier">✅ À publier</option>
+                            <option value="ne_pas_publier">❌ Ne pas publier</option>
+                        </select>
+                    </div>
+
+                    {(searchTerm || filterDpt || filterSource || filterPublication) && (
+                        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-medium text-blue-900">Filtres actifs:</span>
+                                {searchTerm && (
+                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                                        Recherche: "{searchTerm}"
+                                    </span>
+                                )}
+                                {filterDpt && (
+                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                                        Département: {filterDpt}
+                                    </span>
+                                )}
+                                {filterSource && (
+                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                                        Source: {filterSource === 'importe' ? 'Importés' : 'Manuels'}
+                                    </span>
+                                )}
+                                {filterPublication && (
+                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                                        {filterPublication === 'a_publier' ? 'À publier' : 'Ne pas publier'}
+                                    </span>
+                                )}
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setSearchTerm('');
+                                    setFilterDpt('');
+                                    setFilterSource('');
+                                    setFilterPublication('');
+                                }}
+                                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                            >
+                                ✕ Réinitialiser
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="space-y-4 max-h-[700px] overflow-y-auto pr-2">
+                        {filteredCours.length === 0 ? (
+                            <div className="text-center py-16 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border-2 border-dashed border-gray-300">
+                                <div className="text-6xl mb-4">📭</div>
+                                <p className="text-gray-600 text-xl font-semibold mb-2">
+                                    {coursData.length === 0 
+                                        ? 'Aucun cours dans la base de données' 
+                                        : 'Aucun cours ne correspond aux filtres actifs'}
+                                </p>
+                                {coursData.length > 0 && (searchTerm || filterDpt || filterSource || filterPublication) && (
+                                    <button
+                                        onClick={() => {
+                                            setSearchTerm('');
+                                            setFilterDpt('');
+                                            setFilterSource('');
+                                            setFilterPublication('');
+                                        }}
+                                        className="mt-6 px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-xl font-semibold hover:from-purple-600 hover:to-indigo-600 transition-all duration-200 shadow-lg hover:shadow-xl"
+                                    >
+                                        Réinitialiser les filtres
+                                    </button>
+                                )}
+                            </div>
+                        ) : (
+                            filteredCours.map((cours) => (
+                                <div
+                                    key={cours.id || cours.code_cours}
+                                    className="bg-white hover:bg-gradient-to-r hover:from-purple-50 hover:to-indigo-50 p-5 rounded-xl cursor-pointer border-2 border-gray-200 hover:border-purple-300 transition-all duration-200 card-hover shadow-sm hover:shadow-lg"
+                                    onClick={() => onSelectCours(cours)}
+                                >
+                                <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                            <span className="font-semibold text-blue-600 text-lg">{cours.code_cours}</span>
+                                            {cours.dpt_attribution && (
+                                                <span className="text-xs bg-gray-200 px-2 py-1 rounded">{cours.dpt_attribution}</span>
+                                            )}
+                                            {cours.a_publier === true && (
+                                                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-medium">✅ À publier</span>
+                                            )}
+                                            {cours.a_publier === false && (
+                                                <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-medium">❌ Ne pas publier</span>
+                                            )}
+                                            {cours.source === 'manuel' && (
+                                                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded font-medium">✏️ Manuel</span>
+                                            )}
+                                            {((parseVolume(cours.vol1_non_attribue) || 0) > 0 || (parseVolume(cours.vol2_non_attribue) || 0) > 0) && (
+                                                <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-medium">⚠️ VACANT</span>
+                                            )}
+                                        </div>
+                                        <p className="text-sm text-gray-700 font-medium">{cours.intitule || 'Sans intitulé'}</p>
+                                        <div className="flex gap-4 text-xs text-gray-600 mt-2">
+                                            <span>Vol1 Total: <strong>{parseVolume(cours.vol1_total) || 0}h</strong></span>
+                                            <span>Vol2 Total: <strong>{parseVolume(cours.vol2_total) || 0}h</strong></span>
+                                            {(parseVolume(cours.vol1_non_attribue) || 0) > 0 && (
+                                                <span className="text-red-600 font-semibold">Vol1 Non Attr.: {parseVolume(cours.vol1_non_attribue)}h</span>
+                                            )}
+                                            {(parseVolume(cours.vol2_non_attribue) || 0) > 0 && (
+                                                <span className="text-red-600 font-semibold">Vol2 Non Attr.: {parseVolume(cours.vol2_non_attribue)}h</span>
+                                            )}
+                                            {Array.isArray(cours.enseignants_pressentis) && cours.enseignants_pressentis.length > 0 && (
+                                                <span className="text-blue-600">👥 {cours.enseignants_pressentis.length} enseignant(s)</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="text-gray-400 text-2xl ml-4">→</div>
+                                </div>
+                            </div>
+                            ))
+                        )}
+                    </div>
+
+                    <div className="mt-4 text-sm text-gray-600 text-center">
+                        {filteredCours.length} cours affichés sur {coursData.length}
+                    </div>
+                </div>
+            );
+        };
+
+        const DetailCours = ({ cours, onSave, onCancel }) => {
+            const [formData, setFormData] = useState({
+                id: cours?.id || null,
+                code_cours: cours?.code_cours || '',
+                intitule: cours?.intitule || '',
+                dpt_attribution: cours?.dpt_attribution || '',
+                vol1_total: cours?.vol1_total !== null && cours?.vol1_total !== undefined ? cours.vol1_total : 0,
+                vol2_total: cours?.vol2_total !== null && cours?.vol2_total !== undefined ? cours.vol2_total : 0,
+                vol1_non_attribue: cours?.vol1_non_attribue || 0,
+                vol2_non_attribue: cours?.vol2_non_attribue || 0,
+                remarques: cours?.remarques || '',
+                a_publier: cours?.a_publier !== undefined ? cours.a_publier : true,
+                source: cours?.source || (cours ? 'importe' : 'manuel'),
+                enseignants_pressentis: Array.isArray(cours?.enseignants_pressentis) ? cours.enseignants_pressentis : [],
+                candidatures: Array.isArray(cours?.candidatures) ? cours.candidatures : []
+            });
+
+            const [newEnseignant, setNewEnseignant] = useState({
+                nom: '',
+                prenom: '',
+                email: '',
+                vol1: 0,
+                vol2: 0,
+                duree: null,
+                fonction: ''
+            });
+
+            const [newCandidature, setNewCandidature] = useState({
+                nom: '',
+                date: new Date().toLocaleDateString('fr-FR'),
+                commentaire: ''
+            });
+
+            const vol1_attribue = formData.enseignants_pressentis.reduce((sum, e) => sum + (parseVolume(e.vol1) || 0), 0);
+            const vol2_attribue = formData.enseignants_pressentis.reduce((sum, e) => sum + (parseVolume(e.vol2) || 0), 0);
+            const vol1_ecart = Math.abs(vol1_attribue - parseVolume(formData.vol1_total));
+            const vol2_ecart = Math.abs(vol2_attribue - parseVolume(formData.vol2_total));
+            const volumesOk = vol1_ecart < 0.01 && vol2_ecart < 0.01;
+
+            const handleAddEnseignant = () => {
+                if (newEnseignant.nom && newEnseignant.prenom) {
+                    setFormData({
+                        ...formData,
+                        enseignants_pressentis: [...formData.enseignants_pressentis, { ...newEnseignant }]
+                    });
+                    setNewEnseignant({ nom: '', prenom: '', email: '', vol1: 0, vol2: 0, duree: null, fonction: '' });
+                } else {
+                    alert('Veuillez remplir au moins le nom et le prénom');
+                }
+            };
+
+            const handleUpdateEnseignant = (index, field, value) => {
+                const updated = [...formData.enseignants_pressentis];
+                updated[index] = { ...updated[index], [field]: value };
+                setFormData({ ...formData, enseignants_pressentis: updated });
+            };
+
+            const handleRemoveEnseignant = (index) => {
+                if (confirm('Supprimer cet enseignant ?')) {
+                    setFormData({
+                        ...formData,
+                        enseignants_pressentis: formData.enseignants_pressentis.filter((_, i) => i !== index)
+                    });
+                }
+            };
+
+            const handleAddCandidature = () => {
+                if (newCandidature.nom) {
+                    setFormData({
+                        ...formData,
+                        candidatures: [...formData.candidatures, { ...newCandidature }]
+                    });
+                    setNewCandidature({ nom: '', date: new Date().toLocaleDateString('fr-FR'), commentaire: '' });
+                } else {
+                    alert('Veuillez remplir le nom du candidat');
+                }
+            };
+
+            const handleRemoveCandidature = (index) => {
+                if (confirm('Supprimer cette candidature ?')) {
+                    setFormData({
+                        ...formData,
+                        candidatures: formData.candidatures.filter((_, i) => i !== index)
+                    });
+                }
+            };
+
+            const handleSave = () => {
+                if (!formData.code_cours) {
+                    alert('Le code cours est obligatoire');
+                    return;
+                }
+                onSave(formData);
+            };
+
+            return (
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-2xl font-bold text-gray-900">
+                            {cours ? `✏️ Éditer: ${cours.code_cours}` : '➕ Nouveau Cours'}
+                        </h2>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={onCancel}
+                                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+                            >
+                                ❌ Annuler
+                            </button>
+                            <button
+                                onClick={handleSave}
+                                className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
+                            >
+                                💾 Enregistrer
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Code Cours *</label>
+                            <input
+                                type="text"
+                                value={formData.code_cours}
+                                onChange={(e) => setFormData({ ...formData, code_cours: e.target.value })}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Département Attribution</label>
+                            <input
+                                type="text"
+                                value={formData.dpt_attribution}
+                                onChange={(e) => setFormData({ ...formData, dpt_attribution: e.target.value })}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="mb-6">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Intitulé</label>
+                        <input
+                            type="text"
+                            value={formData.intitule}
+                            onChange={(e) => setFormData({ ...formData, intitule: e.target.value })}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Volume 1 Total *</label>
+                            <input
+                                type="number"
+                                step="0.1"
+                                value={formData.vol1_total}
+                                onChange={(e) => setFormData({ ...formData, vol1_total: parseVolume(e.target.value) })}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Volume 2 Total *</label>
+                            <input
+                                type="number"
+                                step="0.1"
+                                value={formData.vol2_total}
+                                onChange={(e) => setFormData({ ...formData, vol2_total: parseVolume(e.target.value) })}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                required
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Volume 1 Non Attribué</label>
+                            <input
+                                type="number"
+                                step="0.1"
+                                value={formData.vol1_non_attribue}
+                                onChange={(e) => setFormData({ ...formData, vol1_non_attribue: parseVolume(e.target.value) })}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Volume 2 Non Attribué</label>
+                            <input
+                                type="number"
+                                step="0.1"
+                                value={formData.vol2_non_attribue}
+                                onChange={(e) => setFormData({ ...formData, vol2_non_attribue: parseVolume(e.target.value) })}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="mb-6">
+                        <label className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                checked={formData.a_publier}
+                                onChange={(e) => setFormData({ ...formData, a_publier: e.target.checked })}
+                                className="w-5 h-5"
+                            />
+                            <span className="text-sm font-semibold text-gray-700">À publier</span>
+                        </label>
+                    </div>
+
+                    <div className="mb-6">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Remarques</label>
+                        <textarea
+                            value={formData.remarques}
+                            onChange={(e) => setFormData({ ...formData, remarques: e.target.value })}
+                            rows="4"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Ajoutez vos remarques sur ce cours..."
+                        />
+                    </div>
+
+                    <div className="mb-6 border-t pt-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900">👥 Enseignants Pressentis</h3>
+                            <div className={`px-4 py-2 rounded-lg font-medium ${volumesOk ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                {volumesOk ? '✅ Volumes OK' : `⚠️ Écart: Vol1 ${vol1_ecart.toFixed(1)}h, Vol2 ${vol2_ecart.toFixed(1)}h`}
+                            </div>
+                        </div>
+
+                        <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                            <div className="grid grid-cols-1 md:grid-cols-7 gap-2 mb-2">
+                                <input
+                                    type="text"
+                                    placeholder="Nom *"
+                                    value={newEnseignant.nom}
+                                    onChange={(e) => setNewEnseignant({ ...newEnseignant, nom: e.target.value })}
+                                    className="px-3 py-2 border border-gray-300 rounded-lg"
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="Prénom *"
+                                    value={newEnseignant.prenom}
+                                    onChange={(e) => setNewEnseignant({ ...newEnseignant, prenom: e.target.value })}
+                                    className="px-3 py-2 border border-gray-300 rounded-lg"
+                                />
+                                <input
+                                    type="email"
+                                    placeholder="Email"
+                                    value={newEnseignant.email}
+                                    onChange={(e) => setNewEnseignant({ ...newEnseignant, email: e.target.value })}
+                                    className="px-3 py-2 border border-gray-300 rounded-lg"
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="Fonction"
+                                    value={newEnseignant.fonction}
+                                    onChange={(e) => setNewEnseignant({ ...newEnseignant, fonction: e.target.value })}
+                                    className="px-3 py-2 border border-gray-300 rounded-lg"
+                                />
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    placeholder="Vol1"
+                                    value={newEnseignant.vol1}
+                                    onChange={(e) => setNewEnseignant({ ...newEnseignant, vol1: parseVolume(e.target.value) })}
+                                    className="px-3 py-2 border border-gray-300 rounded-lg"
+                                />
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    placeholder="Vol2"
+                                    value={newEnseignant.vol2}
+                                    onChange={(e) => setNewEnseignant({ ...newEnseignant, vol2: parseVolume(e.target.value) })}
+                                    className="px-3 py-2 border border-gray-300 rounded-lg"
+                                />
+                                <input
+                                    type="number"
+                                    placeholder="Durée (ans)"
+                                    value={newEnseignant.duree || ''}
+                                    onChange={(e) => setNewEnseignant({ ...newEnseignant, duree: e.target.value ? parseInt(e.target.value) : null })}
+                                    className="px-3 py-2 border border-gray-300 rounded-lg"
+                                />
+                            </div>
+                            <button
+                                onClick={handleAddEnseignant}
+                                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                            >
+                                ➕ Ajouter Enseignant
+                            </button>
+                        </div>
+
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                            {formData.enseignants_pressentis.map((ens, index) => (
+                                <div key={index} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                                    <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
+                                        <input
+                                            type="text"
+                                            value={ens.nom || ''}
+                                            onChange={(e) => handleUpdateEnseignant(index, 'nom', e.target.value)}
+                                            className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                                            placeholder="Nom"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={ens.prenom || ''}
+                                            onChange={(e) => handleUpdateEnseignant(index, 'prenom', e.target.value)}
+                                            className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                                            placeholder="Prénom"
+                                        />
+                                        <input
+                                            type="email"
+                                            value={ens.email || ''}
+                                            onChange={(e) => handleUpdateEnseignant(index, 'email', e.target.value)}
+                                            className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                                            placeholder="Email"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={ens.fonction || ''}
+                                            onChange={(e) => handleUpdateEnseignant(index, 'fonction', e.target.value)}
+                                            className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                                            placeholder="Fonction"
+                                        />
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            value={ens.vol1 || 0}
+                                            onChange={(e) => handleUpdateEnseignant(index, 'vol1', parseVolume(e.target.value))}
+                                            className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                                            placeholder="Vol1"
+                                        />
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            value={ens.vol2 || 0}
+                                            onChange={(e) => handleUpdateEnseignant(index, 'vol2', parseVolume(e.target.value))}
+                                            className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                                            placeholder="Vol2"
+                                        />
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="number"
+                                                value={ens.duree || ''}
+                                                onChange={(e) => handleUpdateEnseignant(index, 'duree', e.target.value ? parseInt(e.target.value) : null)}
+                                                className="px-3 py-2 border border-gray-300 rounded-lg bg-white flex-1"
+                                                placeholder="Durée"
+                                            />
+                                            <button
+                                                onClick={() => handleRemoveEnseignant(index)}
+                                                className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                            {formData.enseignants_pressentis.length === 0 && (
+                                <p className="text-gray-500 text-sm text-center py-4">Aucun enseignant pressenti</p>
+                            )}
+                        </div>
+
+                        <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                            <div className="grid grid-cols-3 gap-4 text-sm">
+                                <div>
+                                    <span className="font-semibold">Vol1 Total:</span> {parseVolume(formData.vol1_total) || 0}h
+                                </div>
+                                <div>
+                                    <span className="font-semibold">Vol1 Attribué:</span> {vol1_attribue.toFixed(1)}h
+                                </div>
+                                <div>
+                                    <span className="font-semibold">Vol1 Restant:</span> {(parseVolume(formData.vol1_total) - vol1_attribue).toFixed(1)}h
+                                </div>
+                                <div>
+                                    <span className="font-semibold">Vol2 Total:</span> {parseVolume(formData.vol2_total) || 0}h
+                                </div>
+                                <div>
+                                    <span className="font-semibold">Vol2 Attribué:</span> {vol2_attribue.toFixed(1)}h
+                                </div>
+                                <div>
+                                    <span className="font-semibold">Vol2 Restant:</span> {(parseVolume(formData.vol2_total) - vol2_attribue).toFixed(1)}h
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="mb-6 border-t pt-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900">📝 Candidatures</h3>
+                            <div className="bg-gray-50 p-3 rounded-lg flex-1 max-w-md ml-4">
+                                <div className="grid grid-cols-3 gap-2 mb-2">
+                                    <input
+                                        type="text"
+                                        placeholder="Nom candidat *"
+                                        value={newCandidature.nom}
+                                        onChange={(e) => setNewCandidature({ ...newCandidature, nom: e.target.value })}
+                                        className="px-3 py-2 border border-gray-300 rounded-lg"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Date (JJ/MM/AAAA)"
+                                        value={newCandidature.date}
+                                        onChange={(e) => setNewCandidature({ ...newCandidature, date: e.target.value })}
+                                        className="px-3 py-2 border border-gray-300 rounded-lg"
+                                    />
+                                    <button
+                                        onClick={handleAddCandidature}
+                                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                                    >
+                                        ➕ Ajouter
+                                    </button>
+                                </div>
+                                <textarea
+                                    placeholder="Commentaire (optionnel)"
+                                    value={newCandidature.commentaire}
+                                    onChange={(e) => setNewCandidature({ ...newCandidature, commentaire: e.target.value })}
+                                    rows="2"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {formData.candidatures.map((cand, index) => (
+                                <div key={index} className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex items-center justify-between">
+                                    <div className="flex-1">
+                                        <div className="font-medium">{cand.nom}</div>
+                                        {cand.date && <div className="text-sm text-gray-600">Date: {cand.date}</div>}
+                                        {cand.commentaire && <div className="text-sm text-gray-600 mt-1">{cand.commentaire}</div>}
+                                    </div>
+                                    <button
+                                        onClick={() => handleRemoveCandidature(index)}
+                                        className="ml-4 px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            ))}
+                            {formData.candidatures.length === 0 && (
+                                <p className="text-gray-500 text-sm text-center py-4">Aucune candidature enregistrée</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const ImportCours = ({ onImportComplete }) => {
+            const [file, setFile] = useState(null);
+            const [importing, setImporting] = useState(false);
+            const [progress, setProgress] = useState({ current: 0, total: 0, message: '' });
+            const [result, setResult] = useState(null);
+            const [error, setError] = useState(null);
+            const [ecraser, setEcraser] = useState(false);
+
+            const handleFileChange = (e) => {
+                const selectedFile = e.target.files[0];
+                if (selectedFile && selectedFile.name.endsWith('.xlsx')) {
+                    setFile(selectedFile);
+                    setError(null);
+                    setResult(null);
+                } else {
+                    setError('Veuillez sélectionner un fichier Excel (.xlsx)');
+                }
+            };
+
+            const importData = async () => {
+                if (!file) return;
+
+                setImporting(true);
+                setError(null);
+                setResult(null);
+
+                try {
+                    if (!window.XLSX) {
+                        const script = document.createElement('script');
+                        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+                        document.head.appendChild(script);
+                        await new Promise((resolve) => { script.onload = resolve; });
+                    }
+
+                    const fileData = await file.arrayBuffer();
+                    const workbook = window.XLSX.read(fileData, { raw: false });
+                    const firstSheet = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheet];
+                    const jsonData = window.XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '' });
+
+                    setProgress({ current: 0, total: jsonData.length, message: 'Préparation des données...' });
+
+                    const supabase = getSupabase();
+
+                    if (ecraser) {
+                        setProgress({ current: 0, total: 1, message: 'Suppression des données existantes...' });
+                        const { error: deleteError } = await supabase
+                            .from('cours_vacants')
+                            .delete()
+                            .neq('id', 0);
+                        if (deleteError) {
+                            console.warn('Erreur lors de la suppression:', deleteError);
+                        }
+                        setProgress({ current: 1, total: 1, message: 'Données supprimées' });
+                        await new Promise(resolve => setTimeout(resolve, 500)); // Petite pause
+                    }
+
+                    const coursMap = new Map();
+                    
+                    // Afficher les colonnes disponibles pour le débogage
+                    if (jsonData.length > 0) {
+                        console.log('Colonnes disponibles dans le fichier Excel:', Object.keys(jsonData[0]));
+                        console.log('Colonnes contenant "vol" ou "Volume":', 
+                            Object.keys(jsonData[0]).filter(k => 
+                                k.toLowerCase().includes('vol') || 
+                                k.toLowerCase().includes('volume')
+                            )
+                        );
+                        // Afficher un exemple de ligne pour voir les valeurs
+                        if (jsonData[0]) {
+                            console.log('Exemple de première ligne:', {
+                                code: jsonData[0].Cours || jsonData[0]['Cours'],
+                                'Volume 1 total': jsonData[0]['Volume 1 total'],
+                                'Volume 2 total': jsonData[0]['Volume 2 total'],
+                                'Volume 1 Total': jsonData[0]['Volume 1 Total'],
+                                'Volume 2 Total': jsonData[0]['Volume 2 Total']
+                            });
+                        }
+                    }
+                    
+                    jsonData.forEach((row) => {
+                        const code = row.Cours || row['Cours'] || '';
+                        if (!code || code.trim() === '') return;
+
+                        const nom = row.Nom || row['Nom'] || '';
+                        const isNonAttribue = nom && nom.toLowerCase().includes('non attr');
+
+                        // Créer le cours si il n'existe pas encore
+                        // IMPORTANT: Les volumes totaux sont pris UNE SEULE FOIS lors de la création
+                        // Ils apparaissent sur chaque ligne mais ne doivent pas être multipliés
+                        if (!coursMap.has(code)) {
+                            // Prendre les volumes totaux de la première ligne trouvée pour ce cours
+                            // IMPORTANT: Ces volumes apparaissent sur CHAQUE ligne mais ne doivent être pris QU'UNE SEULE FOIS
+                            // Les colonnes dans Excel sont "Volume 1 total" et "Volume 2 total" (avec minuscule)
+                            const vol1Total = parseVolume(
+                                row['Volume 1 total'] ||  // Colonne principale dans votre Excel (avec minuscule)
+                                row['Volume 1 Total'] ||  // Variante avec majuscule
+                                row['Volume 1 tc'] ||     // Autre variante possible
+                                row['Volume 1 TC'] ||
+                                row['Vol.1 Total'] || 
+                                row['Vol1 Total'] || 
+                                row['Volume 1 to'] ||
+                                row['Volume 1'] ||
+                                row['Vol.1'] ||
+                                row['Vol1. 2026'] ||
+                                0
+                            );
+                            const vol2Total = parseVolume(
+                                row['Volume 2 total'] ||  // Colonne principale dans votre Excel (avec minuscule)
+                                row['Volume 2 Total'] ||  // Variante avec majuscule
+                                row['Volume 2 tc'] ||     // Autre variante possible
+                                row['Volume 2 TC'] ||
+                                row['Vol.2 Total'] || 
+                                row['Vol2 Total'] || 
+                                row['Volume 2 to'] ||
+                                row['Volume 2'] ||
+                                row['Vol2.'] ||
+                                row['Vol.2'] ||
+                                0
+                            );
+                            
+                            console.log(`Cours ${code}: Vol1 Total = ${vol1Total}, Vol2 Total = ${vol2Total}`, {
+                                'Volume 1 total': row['Volume 1 total'],
+                                'Volume 2 total': row['Volume 2 total'],
+                                'Volume 1 Total': row['Volume 1 Total'],
+                                'Volume 2 Total': row['Volume 2 Total'],
+                                'Volume 1 tc': row['Volume 1 tc'],
+                                'Volume 2 tc': row['Volume 2 tc'],
+                                toutes_les_colonnes_vol: Object.keys(row).filter(k => 
+                                    k.toLowerCase().includes('vol') || k.toLowerCase().includes('volume')
+                                )
+                            });
+                            
+                            coursMap.set(code, {
+                                code_cours: code,
+                                intitule: row['Intit.Compl'] || row['Intitulé'] || row['Intitul'] || row['Intitulé abr.'] || '',
+                                dpt_attribution: row['Dpt Attrib'] || row['Dpt Attribution'] || row['Dpt At'] || '',
+                                vol1_total: vol1Total,  // Pris une seule fois
+                                vol2_total: vol2Total,  // Pris une seule fois
+                                vol1_non_attribue: 0,
+                                vol2_non_attribue: 0,
+                                source: 'importe',
+                                a_publier: true,
+                                enseignants_pressentis: [],
+                                candidatures: []
+                            });
+                        }
+
+                        const cours = coursMap.get(code);
+                        // Les volumes d'attribution sont additionnés ligne par ligne
+                        // Les colonnes dans Excel sont "Vol1. Attrib" et "Vol2. Attrib"
+                        const vol1 = parseVolume(
+                            row['Vol1. Attrib'] ||  // Colonne principale dans votre Excel
+                            row['Vol1. Attribution'] ||
+                            row['Vol.1 attribution'] || 
+                            row['Vol1. enseignant'] || 
+                            row['Vol1'] || 
+                            0
+                        );
+                        const vol2 = parseVolume(
+                            row['Vol2. Attrib'] ||  // Colonne principale dans votre Excel
+                            row['Vol2. Attribution'] ||
+                            row['Vol.2 attribution'] || 
+                            row['Vol2. enseignant'] || 
+                            row['Vol2'] || 
+                            0
+                        );
+
+                        if (isNonAttribue && (vol1 > 0 || vol2 > 0)) {
+                            // Additionner les volumes non attribués
+                            cours.vol1_non_attribue += vol1;
+                            cours.vol2_non_attribue += vol2;
+                        } else if (!isNonAttribue && nom) {
+                            // Ajouter l'enseignant à la liste
+                            const enseignants = Array.isArray(cours.enseignants_pressentis) 
+                                ? cours.enseignants_pressentis 
+                                : JSON.parse(cours.enseignants_pressentis || '[]');
+                            enseignants.push({
+                                nom: nom,
+                                prenom: row.Prénom || row['Prénom'] || '',
+                                email: row.Email || row['Email'] || '',
+                                vol1: vol1,
+                                vol2: vol2,
+                                fonction: row.Fonction || row['Fonction'] || '',
+                                duree: row.Durée ? parseInt(row.Durée) : null
+                            });
+                            cours.enseignants_pressentis = enseignants;
+                        }
+                    });
+
+                    setProgress({ current: 0, total: coursMap.size, message: 'Import vers Supabase...' });
+
+                    let inserted = 0;
+                    let updated = 0;
+                    const errors = [];
+
+                    let currentIndex = 0;
+                    for (const [code, coursData] of coursMap) {
+                        currentIndex++;
+                        setProgress({ 
+                            current: currentIndex, 
+                            total: coursMap.size, 
+                            message: `Import ${code}... (${currentIndex}/${coursMap.size})` 
+                        });
+
+                        try {
+                            // Vérifier si le cours existe (utiliser maybeSingle pour éviter l'erreur 406)
+                            const { data: existing, error: checkError } = await supabase
+                                .from('cours_vacants')
+                                .select('id')
+                                .eq('code_cours', code)
+                                .maybeSingle();
+
+                            if (checkError && checkError.code !== 'PGRST116') {
+                                throw checkError;
+                            }
+
+                            // Préparer les données avec les champs JSONB correctement formatés
+                            // Nettoyer et valider toutes les données avant insertion
+                            // IMPORTANT: Les colonnes a_publier, source, enseignants_pressentis, candidatures
+                            // doivent être ajoutées dans Supabase via le script supabase-add-missing-columns.sql
+                            const dataToSave = {
+                                code_cours: String(coursData.code_cours || '').trim(),
+                                intitule: coursData.intitule ? String(coursData.intitule).trim() : null,
+                                dpt_attribution: coursData.dpt_attribution ? String(coursData.dpt_attribution).trim() : null,
+                                vol1_total: parseFloat(coursData.vol1_total) || 0,
+                                vol2_total: parseFloat(coursData.vol2_total) || 0,
+                                vol1_non_attribue: parseFloat(coursData.vol1_non_attribue) || 0,
+                                vol2_non_attribue: parseFloat(coursData.vol2_non_attribue) || 0
+                            };
+                            
+                            // Ajouter les colonnes optionnelles (uniquement si elles existent dans la table)
+                            // Si vous obtenez une erreur, exécutez supabase-add-missing-columns.sql dans Supabase
+                            try {
+                                // Essayer d'ajouter les colonnes optionnelles
+                                if (coursData.source !== undefined) {
+                                    dataToSave.source = coursData.source || 'importe';
+                                }
+                                if (coursData.a_publier !== undefined) {
+                                    dataToSave.a_publier = Boolean(coursData.a_publier);
+                                }
+                                if (coursData.enseignants_pressentis !== undefined) {
+                                    dataToSave.enseignants_pressentis = Array.isArray(coursData.enseignants_pressentis)
+                                        ? coursData.enseignants_pressentis
+                                        : (typeof coursData.enseignants_pressentis === 'string' 
+                                            ? (coursData.enseignants_pressentis ? JSON.parse(coursData.enseignants_pressentis) : [])
+                                            : []);
+                                }
+                                if (coursData.candidatures !== undefined) {
+                                    dataToSave.candidatures = Array.isArray(coursData.candidatures)
+                                        ? coursData.candidatures
+                                        : (typeof coursData.candidatures === 'string'
+                                            ? (coursData.candidatures ? JSON.parse(coursData.candidatures) : [])
+                                            : []);
+                                }
+                            } catch (e) {
+                                console.warn('Certaines colonnes optionnelles ne peuvent pas être ajoutées:', e);
+                            }
+                            
+                            // Vérifier que code_cours n'est pas vide
+                            if (!dataToSave.code_cours) {
+                                throw new Error('Le code du cours est vide');
+                            }
+
+                            if (existing && existing.id) {
+                                // Mise à jour
+                                const { error: updateError } = await supabase
+                                    .from('cours_vacants')
+                                    .update(dataToSave)
+                                    .eq('code_cours', code);
+                                if (updateError) throw updateError;
+                                updated++;
+                            } else {
+                                // Insertion
+                                const { error: insertError } = await supabase
+                                    .from('cours_vacants')
+                                    .insert(dataToSave);
+                                if (insertError) throw insertError;
+                                inserted++;
+                            }
+                        } catch (err) {
+                            console.error(`Erreur pour ${code}:`, err);
+                            let errorMessage = 'Erreur inconnue';
+                            if (err?.message) {
+                                errorMessage = err.message;
+                            } else if (err?.error?.message) {
+                                errorMessage = err.error.message;
+                            } else if (typeof err === 'string') {
+                                errorMessage = err;
+                            } else {
+                                try {
+                                    errorMessage = JSON.stringify(err);
+                                } catch (e) {
+                                    errorMessage = String(err);
+                                }
+                            }
+                            errors.push(`Erreur ${code}: ${errorMessage}`);
+                            console.error('Détails de l\'erreur:', {
+                                code,
+                                dataToSave: dataToSave || coursData,
+                                error: err,
+                                errorMessage
+                            });
+                        }
+                        
+                        // Petite pause pour éviter de surcharger l'API (toutes les 10 requêtes)
+                        if (currentIndex % 10 === 0 && currentIndex < coursMap.size) {
+                            await new Promise(resolve => setTimeout(resolve, 200));
+                        }
+                    }
+
+                    setProgress({ 
+                        current: coursMap.size, 
+                        total: coursMap.size, 
+                        message: `Import terminé ! ${inserted} créés, ${updated} mis à jour` 
+                    });
+
+                    setResult({ success: true, inserted, updated, errors });
+                    
+                    // Attendre un peu pour s'assurer que les données sont bien enregistrées
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    // Recharger les données
+                    console.log('Rechargement des cours après import...');
+                    onImportComplete();
+
+                } catch (err) {
+                    setError(`Erreur: ${err.message}`);
+                    console.error('Import error:', err);
+                } finally {
+                    setImporting(false);
+                }
+            };
+
+            return (
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-6">📥 Import Excel</h2>
+                    
+                    <div className="mb-6">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Sélectionnez votre fichier Excel</label>
+                        <input
+                            type="file"
+                            accept=".xlsx"
+                            onChange={handleFileChange}
+                            className="mb-4 w-full px-4 py-2 border border-gray-300 rounded-lg"
+                            disabled={importing}
+                        />
+                        {file && (
+                            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <p className="font-semibold text-blue-900 mb-2">📄 {file.name}</p>
+                                <p className="text-sm text-blue-600 mb-4">Taille: {(file.size / 1024).toFixed(2)} KB</p>
+                                <label className="flex items-center gap-2 mb-4">
+                                    <input
+                                        type="checkbox"
+                                        checked={ecraser}
+                                        onChange={(e) => setEcraser(e.target.checked)}
+                                        disabled={importing}
+                                    />
+                                    <span className="text-sm font-medium">⚠️ Écraser les données existantes avant import</span>
+                                </label>
+                                <button
+                                    onClick={importData}
+                                    disabled={importing}
+                                    className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                                >
+                                    {importing ? '⏳ Importation en cours...' : '🚀 Importer'}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {importing && (
+                        <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                            <p className="mb-2 font-semibold text-orange-900">{progress.message || 'Importation en cours...'}</p>
+                            {progress.total > 0 && (
+                                <>
+                                    <div className="w-full bg-orange-200 rounded-full h-3 mb-2">
+                                        <div
+                                            className="bg-orange-600 h-3 rounded-full transition-all duration-300"
+                                            style={{ width: `${Math.min(100, (progress.current / progress.total) * 100)}%` }}
+                                        />
+                                    </div>
+                                    <p className="text-sm text-orange-600 text-right">
+                                        {progress.current} / {progress.total} ({Math.round((progress.current / progress.total) * 100)}%)
+                                    </p>
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {result && (
+                        <div className="p-4 bg-green-50 border border-green-300 rounded-lg">
+                            <p className="font-semibold text-green-900 mb-2">✅ Import réussi !</p>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p className="text-2xl font-bold text-green-600">{result.inserted}</p>
+                                    <p className="text-sm text-gray-600">Cours créés</p>
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-blue-600">{result.updated}</p>
+                                    <p className="text-sm text-gray-600">Cours mis à jour</p>
+                                </div>
+                            </div>
+                            {result.errors.length > 0 && (
+                                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                                    <p className="font-semibold text-yellow-900 mb-2">⚠️ {result.errors.length} erreur(s):</p>
+                                    <div className="max-h-32 overflow-y-auto text-sm text-yellow-700">
+                                        {result.errors.slice(0, 5).map((err, idx) => (
+                                            <p key={idx}>• {err}</p>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {error && (
+                        <div className="p-4 bg-red-50 border border-red-300 rounded-lg">
+                            <p className="font-semibold text-red-900">❌ Erreur</p>
+                            <p className="text-red-700">{error}</p>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // Utiliser createRoot au lieu de ReactDOM.render
+        // Attendre que le DOM soit prêt et que React soit chargé
+        (function() {
+            const initApp = () => {
+                const rootElement = document.getElementById('root');
+                if (rootElement && window.React && window.ReactDOM && window.ReactDOM.createRoot) {
+                    try {
+                        const root = window.ReactDOM.createRoot(rootElement);
+                        root.render(React.createElement(App));
+                    } catch (err) {
+                        console.error('Erreur création root:', err);
+                        alert('Erreur lors de l\'initialisation de React. Vérifiez la console.');
+                    }
+                } else if (!window.React || !window.ReactDOM) {
+                    console.log('En attente de React...');
+                    setTimeout(initApp, 100);
+                } else {
+                    console.log('En attente de createRoot...');
+                    setTimeout(initApp, 100);
+                }
+            };
+            
+            // Attendre que tous les scripts soient chargés
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => {
+                    setTimeout(initApp, 100);
+                });
+            } else {
+                setTimeout(initApp, 100);
+            }
+        })();
+    </script>
+</body>
+</html>

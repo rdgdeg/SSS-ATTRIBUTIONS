@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Grid, ChevronLeft, ChevronRight, Users, BookOpen, AlertTriangle, CheckCircle, Database, Upload, Edit, Bell, X } from 'lucide-react';
+import { Search, Grid, ChevronLeft, ChevronRight, Users, BookOpen, AlertTriangle, CheckCircle, Database, Upload, Edit, Bell, X, FileText } from 'lucide-react';
 
 const App = () => {
   const [coursData, setCoursData] = useState([]);
@@ -268,6 +268,13 @@ const App = () => {
               >
                 <Upload className="w-4 h-4 inline mr-2" />
                 Charger
+              </button>
+              <button
+                onClick={() => window.location.href = '/cours-vacants'}
+                className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg font-medium"
+              >
+                <AlertTriangle className="w-4 h-4 inline mr-2" />
+                Cours Vacants
               </button>
               <button
                 onClick={() => setCurrentView('admin')}

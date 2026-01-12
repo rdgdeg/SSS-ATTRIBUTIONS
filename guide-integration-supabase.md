@@ -5,7 +5,7 @@
 ### 1.1 Créer les tables
 
 1. Allez sur [https://supabase.com/dashboard](https://supabase.com/dashboard)
-2. Sélectionnez votre projet **prejgpqbjpbyfgdmglfq**
+2. Sélectionnez votre projet **dhuuduphwvxrecfqvbbw**
 3. Cliquez sur **SQL Editor** dans le menu gauche
 4. Créez une nouvelle requête
 5. **Copiez tout le contenu** du fichier "Configuration Supabase - SQL et Import"
@@ -49,8 +49,8 @@ import { createClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
 import fs from 'fs';
 
-const SUPABASE_URL = 'https://prejgpqbjpbyfgdmglfq.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByZWpncHFianBieWZnZG1nbGZxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTMwOTQ5MSwiZXhwIjoyMDc0ODg1NDkxfQ.LFBrMOPhpgNsJ71Ha-4eSUoRg2zNW1eEfbfyfKSHiXY';
+const SUPABASE_URL = 'https://dhuuduphwvxrecfqvbbw.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRodXVkdXBod3Z4cmVjZnF2YmJ3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODIxMTI4OSwiZXhwIjoyMDgzNzg3Mjg5fQ.8MxRin8vRlOvGTwFS0YxmU8zf6XsTRj5KKsF2leUZwY';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -186,8 +186,8 @@ node import-data.js 2025_Attrib.xlsx
 ```javascript
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://prejgpqbjpbyfgdmglfq.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByZWpncHFianBieWZnZG1nbGZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMDk0OTEsImV4cCI6MjA3NDg4NTQ5MX0.BlKuISmU3EE_zr4TY5W3JVcOtr0tg6kZ3aSngRaNVTo';
+const supabaseUrl = 'https://dhuuduphwvxrecfqvbbw.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRodXVkdXBod3Z4cmVjZnF2YmJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgyMTEyODksImV4cCI6MjA4Mzc4NzI4OX0.RyURwma808AT0PqFIWXpe6NIdIdoscYN5GiC8Dh7Ktk';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 ```
@@ -325,8 +325,8 @@ npm install @supabase/supabase-js
 ### 4.2 Créer `.env.local`
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://prejgpqbjpbyfgdmglfq.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByZWpncHFianBieWZnZG1nbGZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMDk0OTEsImV4cCI6MjA3NDg4NTQ5MX0.BlKuISmU3EE_zr4TY5W3JVcOtr0tg6kZ3aSngRaNVTo
+NEXT_PUBLIC_SUPABASE_URL=https://dhuuduphwvxrecfqvbbw.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRodXVkdXBod3Z4cmVjZnF2YmJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgyMTEyODksImV4cCI6MjA4Mzc4NzI4OX0.RyURwma808AT0PqFIWXpe6NIdIdoscYN5GiC8Dh7Ktk
 ```
 
 ### 4.3 Modifier votre composant principal

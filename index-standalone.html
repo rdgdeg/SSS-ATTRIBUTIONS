@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cours Vacants - Application</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide-react@latest/dist/umd/lucide-react.min.js"></script>
+    <style>
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+        // Icônes simples (fallback sans dépendance externe)
+        const makeIcon = (char) => (props) => <span className="inline-block" aria-hidden="true" {...props}>{char}</span>;
+        const Search = makeIcon('🔍');
+        const AlertTriangle = makeIcon('⚠️');
+        const Upload = makeIcon('⬆️');
+        const CheckCircle = makeIcon('✅');
+        const Loader = makeIcon('⏳');
+        const FileSpreadsheet = makeIcon('📄');
+        const AlertCircle = makeIcon('❗');
+        const RefreshCw = makeIcon('🔄');
+        const ChevronDown = makeIcon('▾');
+        const ChevronUp = makeIcon('▴');
+        const Clock = makeIcon('⏱️');
+        const User = makeIcon('👤');
+        const Mail = makeIcon('✉️');
+        const Briefcase = makeIcon('💼');
+        const Calendar = makeIcon('📅');
+
+        const parseVolume = (value) => {
+            if (!value || value === '' || String(value).includes('#')) return 0;
+            const parsed = parseFloat(value);
+            return isNaN(parsed) ? 0 : parsed;
+        };
+
+        const parseInteger = (value) => {
+            if (!value || value === '' || String(value).includes('#')) return null;
+            const parsed = parseInt(value);
+            return isNaN(parsed) ? null : parsed;
+        };
+
+        const ImportCoursVacants = () => {
+            const [file, setFile] = useState(null);
+            const [importing, setImporting] = useState(false);
+            const [progress, setProgress] = useState({ current: 0, total: 0, message: '' });
+            const [result, setResult] = useState(null);
+            const [error, setError] = useState(null);
+            const [preview, setPreview] = useState(null);
+            const [coursData, setCoursData] = useState([]);
+            const [issues, setIssues] = useState([]);
+            const [previewRows, setPreviewRows] = useState([]);
+
+            const handleFileChange = async (e) => {
+                const selectedFile = e.target.files[0];
+                if (selectedFile && selectedFile.name.endsWith('.xlsx')) {
+                    setFile(selectedFile);
+                    setError(null);
+                    setResult(null);
+                    setIssues([]);
+                    setPreviewRows([]);
+                    
+                    try {
+                        const fileData = await selectedFile.arrayBuffer();
+                        const workbook = XLSX.read(fileData, { raw: false });
+                        const firstSheet = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheet];
+                        const data = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '', header: 1 });
+                        
+                        if (data.length > 0) {
+                            setPreview({
+                                sheetName: firstSheet,
+                                headers: data[0],
+                                rowCount: data.length - 1
+                            });
+                            setPreviewRows(data.slice(1, 6));
+                        }
+                    } catch (err) {
+                        console.error('Erreur prévisualisation:', err);
+                    }
+                } else {
+                    setError('Veuillez sélectionner un fichier Excel (.xlsx)');
+                    setFile(null);
+                    setPreview(null);
+                    setPreviewRows([]);
+                    setIssues([]);
+                }
+            };
+
+            const importData = async () => {
+                if (!file) return;
+
+                setImporting(true);
+                setError(null);
+                setResult(null);
+                setProgress({ current: 0, total: 0, message: 'Lecture du fichier Excel...' });
+
+                try {
+                    const fileData = await file.arrayBuffer();
+                    const workbook = XLSX.read(fileData, { raw: false });
+                    const firstSheet = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheet];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '' });
+
+                    setProgress({ current: 0, total: jsonData.length, message: 'Préparation des données...' });
+                    const tmpIssues = [];
+
+                    // Grouper par cours (une ligne = une attribution ou "Non Attr.")
+                    const coursMap = new Map();
+                    
+                    jsonData.forEach((row) => {
+                        const code = row.Cours || row['Cours'] || row.Sigle || '';
+                        if (!code || code.trim() === '') {
+                            tmpIssues.push({ type: 'critical', msg: 'Ligne sans code cours détectée (ignorée).' });
+                            return;
+                        }
+
+                        if (!coursMap.has(code)) {
+                            coursMap.set(code, {
+                                sigle: row.Sigle || row['Sigle'] || '',
+                                cnum: parseInteger(row.Cnum || row['Cnum']),
+                                code_cours: code,
+                                intitule: row.Intitul || row['Intitul'] || row['Intitulé'] || '',
+                                intitule_court: row['Intit.C'] || row['Intitulé Court'] || '',
+                                inactif: row.Inactif || row['Inactif'] || false,
+                                etat_validation: row['Etat va'] || row['Etat validation'] || row['Etat va.'] || '',
+                                date_declenchement: row['Décl. d'] || row['Déclenchement date'] || '',
+                                cours_associe: row['Cours'] || '',
+                                vol1_total: parseVolume(row['Vol.1 Total'] || row['Vol1 Total'] || row['Vol.1'] || row['Vol1.']),
+                                vol2_total: parseVolume(row['Vol.2 Total'] || row['Vol2 Total'] || row['Vol.2'] || row['Vol2.']),
+                                vol1_cours: parseVolume(row['Vol1. cours'] || row['Vol1 cours']),
+                                vol2_cours: parseVolume(row['Vol2. cours'] || row['Vol2 cours']),
+                                coef1: parseVolume(row.Coef1 || row['Coef1']),
+                                coef2: parseVolume(row.Coef2 || row['Coef2']),
+                                periodicite: row.Périod || row['Périod'] || row['Périodicité'] || '',
+                                dpt_client: row['Dpt Cl'] || row['Dpt Client'] || '',
+                                dpt_attribution: row['Dpt At'] || row['Dpt Attribution'] || '',
+                                type_cours: row.Type || row['Type'] || '',
+                                attributions: [],
+                                non_attribues: []
+                            });
+                        }
+
+                        const cours = coursMap.get(code);
+                        const nom = row.Nom || row['Nom'] || '';
+                        const prenom = row.Prénor || row['Prénom'] || row['Prenom'] || '';
+                        const enseignant = row.Enseignant || row['Enseignant'] || `${prenom} ${nom}`.trim();
+                        const fonction = row.Foncti || row['Fonction'] || row['Foncti'] || '';
+                        // Volumes d'attribution (priorité aux colonnes dédiées)
+                        const vol1_ens = parseVolume(
+                            row['Vol.1 attribution'] || row['Vol1 attribution'] ||
+                            row['Vol1. enseignant'] || row['Vol1 enseignant'] ||
+                            row['Vol1.'] || row['Vol1']
+                        );
+                        const vol2_ens = parseVolume(
+                            row['Vol.2 attribution'] || row['Vol2 attribution'] ||
+                            row['Vol2. enseignant'] || row['Vol2 enseignant'] ||
+                            row['Vol2.'] || row['Vol2']
+                        );
+                        
+                        const isNonAttribue = !nom || nom.trim() === '' ||
+                                             nom.toLowerCase().includes('non attr') ||
+                                             (enseignant && enseignant.toLowerCase().includes('non attr')) ||
+                                             fonction.toLowerCase().includes('non attr');
+                        
+                        if (isNonAttribue && (vol1_ens > 0 || vol2_ens > 0)) {
+                            cours.non_attribues.push({
+                                vol1_non_attribue: vol1_ens,
+                                vol2_non_attribue: vol2_ens,
+                                cause: row.Cause || row['Cause'] || '',
+                                remarque: row.Remarqu || row['Remarque'] || ''
+                            });
+                        } else if (isNonAttribue && vol1_ens === 0 && vol2_ens === 0) {
+                            tmpIssues.push({ type: 'warning', msg: `Non attribué sans volume pour le cours ${code}` });
+                        } else if (enseignant && enseignant.trim() !== '') {
+                            cours.attributions.push({
+                                enseignant: enseignant,
+                                nom,
+                                prenom,
+                                matricule: row.Matric || row['Matricule'] || '',
+                                email: row.Email || row['Email'] || '',
+                                fonction: fonction,
+                                debut: parseInteger(row.Début || row['Début']),
+                                duree: parseInteger(row.Durée || row['Durée']),
+                                vol1_enseignant: vol1_ens,
+                                vol2_enseignant: vol2_ens,
+                                mode_paiement: row['Mode pal'] || row['Mode paiement'] || '',
+                                candidat: row.Candidat || row['Candidat'] || ''
+                            });
+                        }
+                    });
+
+                    const coursVacantsData = Array.from(coursMap.values()).map(cours => {
+                        const vol1_attribue = cours.attributions.reduce((sum, a) => sum + (a.vol1_enseignant || 0), 0);
+                        const vol2_attribue = cours.attributions.reduce((sum, a) => sum + (a.vol2_enseignant || 0), 0);
+                        const vol1_non_attribue = cours.non_attribues.reduce((sum, na) => sum + (na.vol1_non_attribue || 0), 0);
+                        const vol2_non_attribue = cours.non_attribues.reduce((sum, na) => sum + (na.vol2_non_attribue || 0), 0);
+
+                        if ((cours.vol1_total || 0) === 0 && (vol1_attribue > 0 || vol1_non_attribue > 0)) {
+                            tmpIssues.push({ type: 'warning', msg: `Vol1 total manquant pour ${cours.code_cours} alors que des volumes sont présents.` });
+                        }
+                        if ((cours.vol2_total || 0) === 0 && (vol2_attribue > 0 || vol2_non_attribue > 0)) {
+                            tmpIssues.push({ type: 'warning', msg: `Vol2 total manquant pour ${cours.code_cours} alors que des volumes sont présents.` });
+                        }
+                        
+                        return {
+                            ...cours,
+                            vol1_attribue,
+                            vol2_attribue,
+                            vol1_non_attribue,
+                            vol2_non_attribue,
+                            vol1_restant: (cours.vol1_total || 0) - vol1_attribue - vol1_non_attribue,
+                            vol2_restant: (cours.vol2_total || 0) - vol2_attribue - vol2_non_attribue,
+                            est_vacant: vol1_non_attribue > 0 || vol2_non_attribue > 0
+                        };
+                    });
+
+                    setCoursData(coursVacantsData);
+                    setIssues(tmpIssues);
+                    setResult({
+                        success: true,
+                        total: coursVacantsData.length,
+                        avec_vacants: coursVacantsData.filter(c => c.est_vacant).length
+                    });
+                    setProgress({ current: coursVacantsData.length, total: coursVacantsData.length, message: 'Import terminé !' });
+
+                } catch (err) {
+                    setError(`Erreur lors de l'import: ${err.message}`);
+                    console.error('Import error:', err);
+                } finally {
+                    setImporting(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-100 p-6">
+                    <div className="max-w-6xl mx-auto">
+                        <div className="bg-white rounded-xl shadow-lg p-8 mb-6">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="bg-orange-100 p-3 rounded-lg">
+                                    <AlertTriangle className="w-8 h-8 text-orange-600" />
+                                </div>
+                                <div>
+                                    <h1 className="text-3xl font-bold text-gray-900">Import Cours Vacants</h1>
+                                    <p className="text-gray-600">Importez vos données de cours vacants depuis Excel</p>
+                                </div>
+                            </div>
+
+                            <div className="mb-6">
+                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-orange-400 transition-colors">
+                                    <input
+                                        type="file"
+                                        accept=".xlsx"
+                                        onChange={handleFileChange}
+                                        className="hidden"
+                                        id="file-upload"
+                                        disabled={importing}
+                                    />
+                                    <label htmlFor="file-upload" className="cursor-pointer">
+                                        <FileSpreadsheet className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                                        <p className="text-lg font-medium text-gray-700 mb-2">Cliquez pour sélectionner un fichier</p>
+                                    </label>
+                                </div>
+
+                                {file && (
+                                    <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <FileSpreadsheet className="w-5 h-5 text-orange-600" />
+                                                <div>
+                                                    <p className="font-semibold text-orange-900">{file.name}</p>
+                                                    {preview && <p className="text-sm text-orange-600">{preview.rowCount} lignes</p>}
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={importData}
+                                                disabled={importing}
+                                                className="px-6 py-3 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg font-semibold hover:from-orange-700 hover:to-red-700 disabled:opacity-50"
+                                            >
+                                                {importing ? 'Importation...' : 'Importer'}
+                                            </button>
+                                        </div>
+
+                                        {preview && (
+                                            <div className="mt-3 bg-white border border-orange-200 rounded p-3">
+                                                <p className="text-sm font-semibold text-gray-700 mb-2">Aperçu des premières lignes</p>
+                                                <div className="overflow-auto">
+                                                    <table className="min-w-full text-xs border">
+                                                        <thead>
+                                                            <tr>
+                                                                {preview.headers.slice(0, 8).map((h, idx) => (
+                                                                    <th key={idx} className="border px-2 py-1 bg-gray-50 text-left">{h || `Col ${idx+1}`}</th>
+                                                                ))}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {previewRows.map((r, ridx) => (
+                                                                <tr key={ridx} className="hover:bg-orange-50">
+                                                                    {r.slice(0, 8).map((cell, cidx) => (
+                                                                        <td key={cidx} className="border px-2 py-1">{cell}</td>
+                                                                    ))}
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {importing && progress.total > 0 && (
+                                    <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                                        <div className="mb-2 font-semibold text-orange-900">{progress.message}</div>
+                                        <div className="w-full bg-orange-200 rounded-full h-3">
+                                            <div
+                                                className="bg-gradient-to-r from-orange-600 to-red-600 h-full transition-all"
+                                                style={{ width: `${(progress.current / progress.total) * 100}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {result && (
+                                    <div className="mt-4 p-6 bg-green-50 border-2 border-green-300 rounded-lg">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <CheckCircle className="w-8 h-8 text-green-600" />
+                                            <h3 className="text-xl font-bold text-green-900">Import réussi !</h3>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="bg-white p-4 rounded-lg">
+                                                <div className="text-3xl font-bold text-green-600">{result.total}</div>
+                                                <div className="text-sm text-gray-600">Cours importés</div>
+                                            </div>
+                                            <div className="bg-white p-4 rounded-lg">
+                                                <div className="text-3xl font-bold text-orange-600">{result.avec_vacants}</div>
+                                                <div className="text-sm text-gray-600">Cours avec volumes vacants</div>
+                                            </div>
+                                        </div>
+                                        {issues.length > 0 && (
+                                            <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                                                <div className="font-semibold text-orange-900 mb-2">Points à vérifier ({issues.length})</div>
+                                                <ul className="list-disc list-inside text-sm text-orange-800 space-y-1 max-h-40 overflow-y-auto">
+                                                    {issues.map((iss, idx) => (
+                                                        <li key={idx} className={iss.type === 'critical' ? 'font-semibold' : ''}>{iss.msg}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {error && (
+                                    <div className="mt-4 p-4 bg-red-50 border-2 border-red-300 rounded-lg flex items-start gap-3">
+                                        <AlertCircle className="w-6 h-6 text-red-600" />
+                                        <div>
+                                            <h3 className="font-bold text-red-900">Erreur</h3>
+                                            <p className="text-sm text-red-700">{error}</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {coursData.length > 0 && (
+                            <CoursVacantsList coursData={coursData} />
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const CoursVacantsList = ({ coursData }) => {
+            const [searchTerm, setSearchTerm] = useState('');
+            const [filterDpt, setFilterDpt] = useState('');
+            const [selectedCours, setSelectedCours] = useState(null);
+
+            const filteredCours = useMemo(() => {
+                return coursData.filter(c => {
+                    const matchSearch = !searchTerm || 
+                        (c.code_cours && c.code_cours.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                        (c.intitule && c.intitule.toLowerCase().includes(searchTerm.toLowerCase()));
+                    const matchDpt = !filterDpt || c.dpt_attribution === filterDpt;
+                    const matchVacant = c.est_vacant;
+                    return matchSearch && matchDpt && matchVacant;
+                });
+            }, [coursData, searchTerm, filterDpt]);
+
+            const departements = useMemo(() => {
+                return [...new Set(coursData.map(c => c.dpt_attribution).filter(d => d))].sort();
+            }, [coursData]);
+
+            const stats = useMemo(() => {
+                return {
+                    total: coursData.length,
+                    vacants: coursData.filter(c => c.est_vacant).length,
+                    total_vol1_non_attribue: coursData.reduce((sum, c) => sum + (c.vol1_non_attribue || 0), 0),
+                    total_vol2_non_attribue: coursData.reduce((sum, c) => sum + (c.vol2_non_attribue || 0), 0)
+                };
+            }, [coursData]);
+
+            return (
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Cours Vacants</h2>
+                    
+                    <div className="grid grid-cols-4 gap-4 mb-6">
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                            <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
+                            <div className="text-sm text-gray-600">Total cours</div>
+                        </div>
+                        <div className="bg-orange-50 p-4 rounded-lg">
+                            <div className="text-2xl font-bold text-orange-600">{stats.vacants}</div>
+                            <div className="text-sm text-gray-600">Cours vacants</div>
+                        </div>
+                        <div className="bg-red-50 p-4 rounded-lg">
+                            <div className="text-2xl font-bold text-red-600">{stats.total_vol1_non_attribue.toFixed(1)}h</div>
+                            <div className="text-sm text-gray-600">Vol1 non attribué</div>
+                        </div>
+                        <div className="bg-red-50 p-4 rounded-lg">
+                            <div className="text-2xl font-bold text-red-600">{stats.total_vol2_non_attribue.toFixed(1)}h</div>
+                            <div className="text-sm text-gray-600">Vol2 non attribué</div>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-4 mb-6">
+                        <div className="flex-1 relative">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                            <input
+                                type="text"
+                                placeholder="Rechercher..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg"
+                            />
+                        </div>
+                        <select
+                            value={filterDpt}
+                            onChange={(e) => setFilterDpt(e.target.value)}
+                            className="w-64 p-2 border border-gray-300 rounded-lg"
+                        >
+                            <option value="">Tous les départements</option>
+                            {departements.map(dpt => (
+                                <option key={dpt} value={dpt}>{dpt}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="space-y-4">
+                        {filteredCours.map((cours, index) => (
+                            <CoursCard 
+                                key={cours.code_cours || index} 
+                                cours={cours}
+                                isSelected={selectedCours?.code_cours === cours.code_cours}
+                                onToggle={() => setSelectedCours(selectedCours?.code_cours === cours.code_cours ? null : cours)}
+                            />
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const CoursCard = ({ cours, isSelected, onToggle }) => {
+            return (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="p-4 cursor-pointer" onClick={onToggle}>
+                        <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="font-semibold text-orange-600">{cours.code_cours}</span>
+                                    {cours.dpt_attribution && (
+                                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">{cours.dpt_attribution}</span>
+                                    )}
+                                    {(cours.vol1_non_attribue > 0 || cours.vol2_non_attribue > 0) && (
+                                        <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-medium">VACANT</span>
+                                    )}
+                                </div>
+                                <h3 className="text-sm text-gray-700 mb-2 font-medium">{cours.intitule || 'Sans intitulé'}</h3>
+                                <div className="flex gap-4 text-xs text-gray-600">
+                                    <div>Vol1 Total: <span className="font-medium">{cours.vol1_total}h</span></div>
+                                    <div>Vol2 Total: <span className="font-medium">{cours.vol2_total}h</span></div>
+                                    {cours.vol1_non_attribue > 0 && (
+                                        <div className="text-red-600">Vol1 Non Attr.: <span className="font-bold">{cours.vol1_non_attribue}h</span></div>
+                                    )}
+                                    {cours.vol2_non_attribue > 0 && (
+                                        <div className="text-red-600">Vol2 Non Attr.: <span className="font-bold">{cours.vol2_non_attribue}h</span></div>
+                                    )}
+                                </div>
+                            </div>
+                            <button className="ml-4 text-gray-400">
+                                {isSelected ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                            </button>
+                        </div>
+                    </div>
+                    
+                    {isSelected && (
+                        <div className="border-t border-gray-200 bg-gray-50 p-4">
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <h4 className="font-semibold mb-2">Attributions ({cours.attributions.length})</h4>
+                                    <div className="space-y-2">
+                                        {cours.attributions.map((attr, idx) => (
+                                            <div key={idx} className="bg-white p-2 rounded border">
+                                                <div className="font-medium">{attr.enseignant}</div>
+                                                <div className="text-xs text-gray-600">
+                                                    Vol1: {attr.vol1_enseignant}h | Vol2: {attr.vol2_enseignant}h
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold mb-2">Volumes Non Attribués ({cours.non_attribues.length})</h4>
+                                    <div className="space-y-2">
+                                        {cours.non_attribues.map((na, idx) => (
+                                            <div key={idx} className="bg-red-50 p-2 rounded border border-red-200">
+                                                <div className="text-xs text-red-700">
+                                                    Vol1: {na.vol1_non_attribue}h | Vol2: {na.vol2_non_attribue}h
+                                                </div>
+                                                {na.cause && <div className="text-xs text-gray-600 mt-1">Cause: {na.cause}</div>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const App = () => {
+            return <ImportCoursVacants />;
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Upload, CheckCircle, AlertCircle, Loader, FileSpreadsheet, Database } from 'lucide-react';
 
-const SUPABASE_URL = 'https://prejgpqbjpbyfgdmglfq.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByZWpncHFianBieWZnZG1nbGZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMDk0OTEsImV4cCI6MjA3NDg4NTQ5MX0.BlKuISmU3EE_zr4TY5W3JVcOtr0tg6kZ3aSngRaNVTo';
+const SUPABASE_URL = 'https://dhuuduphwvxrecfqvbbw.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRodXVkdXBod3Z4cmVjZnF2YmJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgyMTEyODksImV4cCI6MjA4Mzc4NzI4OX0.RyURwma808AT0PqFIWXpe6NIdIdoscYN5GiC8Dh7Ktk';
 
 const ImportExcel = () => {
   const [file, setFile] = useState(null);
