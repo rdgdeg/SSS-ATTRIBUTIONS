@@ -1,0 +1,20 @@
+{
+  "name": "sss-attributions",
+  "version": "1.0.0",
+  "description": "Application de gestion des cours vacants et attributions pour UCLouvain",
+  "type": "module",
+  "scripts": {
+    "dev": "python server.py",
+    "start": "python server.py"
+  },
+  "keywords": [
+    "cours-vacants",
+    "attributions",
+    "uclouvain"
+  ],
+  "author": "rdgdeg",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
