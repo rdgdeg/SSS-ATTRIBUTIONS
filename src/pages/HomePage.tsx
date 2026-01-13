@@ -2,8 +2,21 @@ import { Link } from 'react-router-dom'
 import { Upload, FileText, Database, BarChart3 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { useCoursVacants } from '@/hooks/useCoursVacants'
+import { useMemo } from 'react'
 
 export default function HomePage() {
+  const { data: coursVacants = [], isLoading } = useCoursVacants()
+
+  const stats = useMemo(() => {
+    return {
+      total: coursVacants.length,
+      avecCandidat: coursVacants.filter(c => c.candidat && c.candidat.trim() !== '').length,
+      sansCandidat: coursVacants.filter(c => !c.candidat || c.candidat.trim() === '').length,
+      enAttente: coursVacants.filter(c => c.etat_validation === 'En attente' || c.etat_validation === 'en_attente').length,
+    }
+  }, [coursVacants])
+
   return (
     <div className="space-y-8">
       <div>
@@ -20,7 +33,7 @@ export default function HomePage() {
             <Database className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">-</div>
+            <div className="text-2xl font-bold">{isLoading ? '-' : stats.total}</div>
             <p className="text-xs text-muted-foreground">Cours vacants enregistrés</p>
           </CardContent>
         </Card>
@@ -30,7 +43,7 @@ export default function HomePage() {
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">-</div>
+            <div className="text-2xl font-bold text-green-600">{isLoading ? '-' : stats.avecCandidat}</div>
             <p className="text-xs text-muted-foreground">Cours avec candidat</p>
           </CardContent>
         </Card>
@@ -40,7 +53,7 @@ export default function HomePage() {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">-</div>
+            <div className="text-2xl font-bold text-red-600">{isLoading ? '-' : stats.sansCandidat}</div>
             <p className="text-xs text-muted-foreground">Cours sans candidat</p>
           </CardContent>
         </Card>
@@ -50,7 +63,7 @@ export default function HomePage() {
             <Upload className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">-</div>
+            <div className="text-2xl font-bold text-orange-600">{isLoading ? '-' : stats.enAttente}</div>
             <p className="text-xs text-muted-foreground">Cours en attente</p>
           </CardContent>
         </Card>

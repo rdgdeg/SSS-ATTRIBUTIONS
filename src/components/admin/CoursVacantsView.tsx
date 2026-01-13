@@ -173,25 +173,25 @@ export default function CoursVacantsView() {
                 className="pl-10"
               />
             </div>
-            <Select value={filterDpt} onValueChange={setFilterDpt}>
+            <Select value={filterDpt || 'all'} onValueChange={(value) => setFilterDpt(value === 'all' ? '' : value)}>
               <SelectTrigger className="w-full md:w-[200px]">
                 <SelectValue placeholder="Tous les départements" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Tous les départements</SelectItem>
+                <SelectItem value="all">Tous les départements</SelectItem>
                 {departements.map(dpt => (
-                  <SelectItem key={dpt} value={dpt || ''}>{dpt}</SelectItem>
+                  <SelectItem key={dpt} value={dpt || 'unknown'}>{dpt}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <Select value={filterEtat} onValueChange={setFilterEtat}>
+            <Select value={filterEtat || 'all'} onValueChange={(value) => setFilterEtat(value === 'all' ? '' : value)}>
               <SelectTrigger className="w-full md:w-[200px]">
                 <SelectValue placeholder="Tous les états" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Tous les états</SelectItem>
+                <SelectItem value="all">Tous les états</SelectItem>
                 {etats.map(etat => (
-                  <SelectItem key={etat} value={etat || ''}>{etat}</SelectItem>
+                  <SelectItem key={etat} value={etat || 'unknown'}>{etat}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
