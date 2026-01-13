@@ -6,7 +6,7 @@
 
 1. Allez sur https://github.com/new
 2. Remplissez les informations :
-   - **Repository name** : `sss-attributions`
+   - **Repository name** : `SSS-ATTRIBUTIONS`
    - **Description** : `Application de gestion des cours vacants et attributions pour UCLouvain`
    - **Visibilité** : Public ou Private (selon votre choix)
    - **Ne cochez PAS** "Initialize this repository with a README"
@@ -17,7 +17,7 @@
 ### Option B : Via GitHub CLI (si installé)
 
 ```bash
-gh repo create sss-attributions --public --source=. --remote=origin --push
+gh repo create SSS-ATTRIBUTIONS --public --source=. --remote=origin --push
 ```
 
 ## 📤 Étape 2 : Pousser le code vers GitHub
@@ -51,7 +51,7 @@ Ensuite, lors du `git push`, utilisez votre nom d'utilisateur GitHub et le token
 1. Allez sur https://vercel.com
 2. Connectez-vous avec votre compte GitHub
 3. Cliquez sur **"Add New Project"**
-4. Sélectionnez le repository `sss-attributions`
+4. Sélectionnez le repository `SSS-ATTRIBUTIONS`
 5. Vercel détectera automatiquement la configuration :
    - **Framework Preset** : Other (ou Static Site)
    - **Root Directory** : `./` (racine)
@@ -101,7 +101,7 @@ Si vous avez besoin de variables d'environnement pour Supabase :
 ## 📝 Vérification du déploiement
 
 Après le déploiement, Vercel vous donnera une URL comme :
-- `https://sss-attributions.vercel.app`
+- `https://sss-attributions.vercel.app` (ou un nom personnalisé)
 - Ou un nom personnalisé si configuré
 
 Testez l'application en accédant à cette URL.
@@ -129,7 +129,7 @@ git push origin main
 
 ### Problème : Erreur d'authentification GitHub
 - Configurez un Personal Access Token
-- Ou changez le remote vers SSH : `git remote set-url origin git@github.com:rdgdeg/sss-attributions.git`
+- Ou changez le remote vers SSH : `git remote set-url origin git@github.com:rdgdeg/SSS-ATTRIBUTIONS.git`
 
 ### Problème : Vercel ne trouve pas les fichiers
 - Vérifiez que `vercel.json` est à la racine

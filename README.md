@@ -35,8 +35,8 @@ Cette application permet de :
 
 1. Clonez le repository :
 ```bash
-git clone https://github.com/rdgdeg/sss-attributions.git
-cd sss-attributions
+git clone https://github.com/rdgdeg/SSS-ATTRIBUTIONS.git
+cd SSS-ATTRIBUTIONS
 ```
 
 2. Configurez Supabase :
