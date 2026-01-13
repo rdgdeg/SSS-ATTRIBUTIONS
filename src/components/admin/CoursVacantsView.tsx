@@ -1,13 +1,19 @@
-import { useState, useMemo } from 'react'
-import { Search, RefreshCw, AlertTriangle, Upload, ChevronDown, ChevronUp, Edit, Save, X, ArrowUpDown } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { Search, RefreshCw, AlertTriangle, Upload, ChevronDown, ChevronUp, Edit, Save, X, ArrowUpDown, Users, Mail, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 import { useCoursVacants, useUpdateCoursVacant, CoursVacant } from '@/hooks/useCoursVacants'
+import { useCandidatures, useCreateCandidature } from '@/hooks/useCandidatures'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '@/integrations/supabase/client'
+import { useToast } from '@/components/ui/use-toast'
+import { sendEmail, formatCandidatureEmail } from '@/utils/email'
 
 export default function CoursVacantsView() {
   const { data: coursVacants = [], isLoading, error, refetch } = useCoursVacants()
@@ -289,7 +295,38 @@ function CoursVacantRow({
 }) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedData, setEditedData] = useState({ ...cours })
+  const [attributions, setAttributions] = useState<any[]>([])
+  const [loadingAttributions, setLoadingAttributions] = useState(false)
+  const [showCandidatureDialog, setShowCandidatureDialog] = useState(false)
+  const [candidatureData, setCandidatureData] = useState({ nom: '', prenom: '', email: '' })
   const updateMutation = useUpdateCoursVacant()
+  const createCandidatureMutation = useCreateCandidature()
+  const { data: candidatures = [] } = useCandidatures(cours.id)
+  const { toast } = useToast()
+
+  useEffect(() => {
+    if (isSelected && cours.id) {
+      loadAttributions()
+    }
+  }, [isSelected, cours.id])
+
+  const loadAttributions = async () => {
+    if (!cours.id) return
+    setLoadingAttributions(true)
+    try {
+      const { data, error } = await supabase
+        .from('cours_vacants_attributions')
+        .select('*')
+        .eq('cours_vacant_id', cours.id)
+      
+      if (error) throw error
+      setAttributions(data || [])
+    } catch (error) {
+      console.error('Erreur chargement attributions:', error)
+    } finally {
+      setLoadingAttributions(false)
+    }
+  }
 
   const handleSave = async () => {
     if (!cours.id) return
@@ -300,8 +337,48 @@ function CoursVacantRow({
       })
       setIsEditing(false)
       onUpdate()
+      toast({
+        title: "Succès",
+        description: "Cours mis à jour avec succès",
+      })
     } catch (error) {
       console.error('Erreur lors de la mise à jour:', error)
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de la mise à jour",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleCreateCandidature = async () => {
+    if (!cours.id) return
+    try {
+      const candidature = await createCandidatureMutation.mutateAsync({
+        cours_vacant_id: cours.id,
+        nom: candidatureData.nom,
+        prenom: candidatureData.prenom,
+        email: candidatureData.email,
+        statut: 'en_attente',
+        date_candidature: new Date().toISOString(),
+      })
+
+      // Envoyer l'email de confirmation
+      await sendEmail(formatCandidatureEmail(cours, candidatureData))
+
+      setShowCandidatureDialog(false)
+      setCandidatureData({ nom: '', prenom: '', email: '' })
+      onUpdate()
+      toast({
+        title: "Candidature créée",
+        description: "La candidature a été enregistrée et un email de confirmation a été envoyé",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Erreur",
+        description: error.message || "Erreur lors de la création de la candidature",
+        variant: "destructive",
+      })
     }
   }
 
@@ -352,49 +429,183 @@ function CoursVacantRow({
       {isSelected && (
         <TableRow>
           <TableCell colSpan={6}>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Détails du cours</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground">Volume 1 total</label>
-                    {isEditing ? (
-                      <Input
-                        type="number"
-                        value={editedData.vol1_total || ''}
-                        onChange={(e) => setEditedData({ ...editedData, vol1_total: parseFloat(e.target.value) || 0 })}
-                        className="mt-1"
-                      />
-                    ) : (
-                      <div className="text-sm font-medium mt-1">{cours.vol1_total || 0}h</div>
-                    )}
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Détails du cours</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground">Volume 1 total</Label>
+                      {isEditing ? (
+                        <Input
+                          type="number"
+                          value={editedData.vol1_total || ''}
+                          onChange={(e) => setEditedData({ ...editedData, vol1_total: parseFloat(e.target.value) || 0 })}
+                          className="mt-1"
+                        />
+                      ) : (
+                        <div className="text-sm font-medium mt-1">{cours.vol1_total || 0}h</div>
+                      )}
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground">Volume 2 total</Label>
+                      {isEditing ? (
+                        <Input
+                          type="number"
+                          value={editedData.vol2_total || ''}
+                          onChange={(e) => setEditedData({ ...editedData, vol2_total: parseFloat(e.target.value) || 0 })}
+                          className="mt-1"
+                        />
+                      ) : (
+                        <div className="text-sm font-medium mt-1">{cours.vol2_total || 0}h</div>
+                      )}
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground">Département</Label>
+                      <div className="text-sm font-medium mt-1">{cours.dpt_attribution || '-'}</div>
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground">État</Label>
+                      <div className="text-sm font-medium mt-1">{cours.etat_validation || '-'}</div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground">Volume 2 total</label>
-                    {isEditing ? (
-                      <Input
-                        type="number"
-                        value={editedData.vol2_total || ''}
-                        onChange={(e) => setEditedData({ ...editedData, vol2_total: parseFloat(e.target.value) || 0 })}
-                        className="mt-1"
-                      />
-                    ) : (
-                      <div className="text-sm font-medium mt-1">{cours.vol2_total || 0}h</div>
-                    )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Users className="w-5 h-5" />
+                    Attributions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loadingAttributions ? (
+                    <div className="text-center py-4 text-muted-foreground">Chargement...</div>
+                  ) : attributions.length === 0 ? (
+                    <div className="text-center py-4 text-muted-foreground">Aucune attribution</div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nom</TableHead>
+                          <TableHead>Prénom</TableHead>
+                          <TableHead>Fonction</TableHead>
+                          <TableHead>Vol1</TableHead>
+                          <TableHead>Vol2</TableHead>
+                          <TableHead>Email</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {attributions.map((attr) => (
+                          <TableRow key={attr.id}>
+                            <TableCell>{attr.nom || '-'}</TableCell>
+                            <TableCell>{attr.prenom || '-'}</TableCell>
+                            <TableCell>{attr.fonction || '-'}</TableCell>
+                            <TableCell>{attr.vol1_attrib || 0}h</TableCell>
+                            <TableCell>{attr.vol2_attrib || 0}h</TableCell>
+                            <TableCell>{attr.email_ucl || '-'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Mail className="w-5 h-5" />
+                    Candidatures ({candidatures.length})
+                  </CardTitle>
+                  <Button size="sm" onClick={() => setShowCandidatureDialog(true)}>
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    Ajouter candidature
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  {candidatures.length === 0 ? (
+                    <div className="text-center py-4 text-muted-foreground">Aucune candidature</div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nom</TableHead>
+                          <TableHead>Prénom</TableHead>
+                          <TableHead>Email</TableHead>
+                          <TableHead>Statut</TableHead>
+                          <TableHead>Date</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {candidatures.map((cand) => (
+                          <TableRow key={cand.id}>
+                            <TableCell>{cand.nom || '-'}</TableCell>
+                            <TableCell>{cand.prenom || '-'}</TableCell>
+                            <TableCell>{cand.email || '-'}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{cand.statut || 'en_attente'}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              {cand.date_candidature ? new Date(cand.date_candidature).toLocaleDateString('fr-FR') : '-'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <Dialog open={showCandidatureDialog} onOpenChange={setShowCandidatureDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Ajouter une candidature</DialogTitle>
+                  <DialogDescription>
+                    Ajoutez une nouvelle candidature pour le cours {cours.code_cours}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="candidat-nom">Nom</Label>
+                    <Input
+                      id="candidat-nom"
+                      value={candidatureData.nom}
+                      onChange={(e) => setCandidatureData({ ...candidatureData, nom: e.target.value })}
+                    />
                   </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground">Département</label>
-                    <div className="text-sm font-medium mt-1">{cours.dpt_attribution || '-'}</div>
+                  <div className="space-y-2">
+                    <Label htmlFor="candidat-prenom">Prénom</Label>
+                    <Input
+                      id="candidat-prenom"
+                      value={candidatureData.prenom}
+                      onChange={(e) => setCandidatureData({ ...candidatureData, prenom: e.target.value })}
+                    />
                   </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground">État</label>
-                    <div className="text-sm font-medium mt-1">{cours.etat_validation || '-'}</div>
+                  <div className="space-y-2">
+                    <Label htmlFor="candidat-email">Email</Label>
+                    <Input
+                      id="candidat-email"
+                      type="email"
+                      value={candidatureData.email}
+                      onChange={(e) => setCandidatureData({ ...candidatureData, email: e.target.value })}
+                    />
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowCandidatureDialog(false)}>
+                    Annuler
+                  </Button>
+                  <Button onClick={handleCreateCandidature} disabled={createCandidatureMutation.isPending}>
+                    {createCandidatureMutation.isPending ? 'Création...' : 'Créer candidature'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </TableCell>
         </TableRow>
       )}

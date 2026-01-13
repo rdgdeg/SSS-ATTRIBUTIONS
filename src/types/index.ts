@@ -7,6 +7,7 @@ export interface CoursVacant {
   vol2_total?: number
   dpt_attribution?: string
   etat_validation?: string
+  candidat?: string
   [key: string]: any
 }
 
@@ -30,4 +31,15 @@ export interface AppField {
   label: string
   required: boolean
   category: string
+}
+
+export interface Candidature {
+  id?: number
+  cours_vacant_id: number
+  nom?: string
+  prenom?: string
+  email?: string
+  statut?: string
+  date_candidature?: string
+  [key: string]: any
 }
