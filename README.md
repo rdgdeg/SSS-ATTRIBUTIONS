@@ -20,7 +20,7 @@ Cette application permet de :
 - **Validation des volumes** : Contrôle automatique que la somme des attributions correspond aux volumes totaux
 
 ### Gestion des cours
-- **Affichage moderne** : Interface utilisateur moderne et ergonomique
+- **Affichage moderne** : Interface utilisateur moderne et ergonomique avec shadcn/ui
 - **Mode édition sécurisé** : Les champs ne sont éditables qu'après activation du mode édition
 - **Historique des modifications** : Suivi complet des changements effectués sur chaque cours
 - **Tableau des membres** : Affichage détaillé de tous les membres attribués à un cours
@@ -28,7 +28,7 @@ Cette application permet de :
 ## 🚀 Démarrage rapide
 
 ### Prérequis
-- Python 3.x (pour le serveur local)
+- Node.js 18+ et npm
 - Un compte Supabase configuré
 
 ### Installation
@@ -39,7 +39,23 @@ git clone https://github.com/rdgdeg/SSS-ATTRIBUTIONS.git
 cd SSS-ATTRIBUTIONS
 ```
 
-2. Configurez Supabase :
+2. Installez les dépendances :
+```bash
+npm install
+```
+
+3. Configurez les variables d'environnement :
+```bash
+cp env.example .env.local
+```
+
+Éditez `.env.local` et ajoutez vos clés Supabase :
+```env
+VITE_SUPABASE_URL=votre_url_supabase
+VITE_SUPABASE_ANON_KEY=votre_clé_anon_supabase
+```
+
+4. Configurez Supabase :
    - Créez un projet Supabase
    - Exécutez les scripts SQL dans l'ordre :
      - `supabase-cours-vacants-sql.sql`
@@ -47,54 +63,63 @@ cd SSS-ATTRIBUTIONS
      - `supabase-create-attributions-table.sql`
      - `supabase-add-all-excel-columns.sql` (si nécessaire)
 
-3. Mettez à jour les clés Supabase dans les fichiers :
-   - `import-cours-vacants.tsx`
-   - `cours-vacants-view.tsx`
-   - `app-cours-vacants-complete.html`
-   - `app-gestion-cours-vacants.html`
-
 ### Lancement en local
 
-1. Démarrez le serveur HTTP :
+1. Démarrez le serveur de développement :
 ```bash
-python server.py
+npm run dev
 ```
 
-2. Ouvrez votre navigateur à : `http://localhost:8000`
+2. Ouvrez votre navigateur à : `http://localhost:5173`
 
-3. Accédez à l'application :
-   - `app-cours-vacants-complete.html` - Application complète
-   - `app-gestion-cours-vacants.html` - Gestion complète
-   - `index-standalone.html` - Version standalone
+### Build pour production
+
+```bash
+npm run build
+```
+
+Le dossier `dist/` contiendra les fichiers optimisés pour la production.
 
 ## 📁 Structure du projet
 
 ```
 SSS-ATTRIBUTIONS/
-├── import-cours-vacants.tsx          # Composant d'import Excel
-├── cours-vacants-view.tsx            # Vue des cours vacants
-├── cours-attributions-app.tsx        # Application principale des attributions
-├── import-excel-component.tsx        # Composant d'import Excel (ancien)
-├── app-cours-vacants-complete.html  # Application HTML complète
-├── app-gestion-cours-vacants.html    # Application HTML de gestion
-├── index-standalone.html             # Version standalone
-├── server.py                         # Serveur HTTP local
-├── supabase-*.sql                    # Scripts SQL pour Supabase
-└── GUIDE-*.md                        # Guides de dépannage
+├── src/
+│   ├── components/          # Composants React
+│   │   ├── admin/          # Interface d'administration
+│   │   └── ui/             # Composants UI réutilisables (shadcn/ui)
+│   ├── hooks/              # Hooks personnalisés (React Query)
+│   ├── pages/              # Pages de l'application
+│   ├── types/              # Types TypeScript
+│   ├── utils/              # Utilitaires
+│   ├── integrations/       # Intégrations externes (Supabase)
+│   ├── lib/                # Bibliothèques utilitaires
+│   ├── App.tsx              # Application principale
+│   └── main.tsx            # Point d'entrée
+├── public/                 # Assets statiques
+├── supabase-*.sql          # Scripts SQL pour Supabase
+└── GUIDE-*.md              # Guides de dépannage
 ```
 
 ## 📚 Documentation
 
 - [GUIDE-DEPANNAGE-IMPORT.md](GUIDE-DEPANNAGE-IMPORT.md) - Guide de dépannage pour l'import
 - [GUIDE-DEPANNAGE-VOLUMES.md](GUIDE-DEPANNAGE-VOLUMES.md) - Guide de dépannage pour les volumes
+- [GUIDE-DEPLOIEMENT.md](GUIDE-DEPLOIEMENT.md) - Guide de déploiement GitHub et Vercel
 - [README-COURS-VACANTS.md](README-COURS-VACANTS.md) - Documentation des cours vacants
 - [guide-integration-supabase.md](guide-integration-supabase.md) - Guide d'intégration Supabase
 
 ## 🔧 Technologies utilisées
 
-- **React** - Framework UI
+- **React 18** - Framework UI
+- **TypeScript** - Typage statique
+- **Vite** - Build tool et dev server
 - **Tailwind CSS** - Framework CSS
+- **shadcn/ui** - Composants UI modernes
+- **Radix UI** - Composants UI accessibles
 - **Supabase** - Backend (PostgreSQL)
+- **TanStack Query** - Gestion d'état et cache
+- **React Router DOM** - Routing
 - **XLSX.js** - Lecture de fichiers Excel
 - **Lucide React** - Icônes
 
@@ -120,6 +145,17 @@ L'application attend un fichier Excel avec les colonnes suivantes (peut être ma
 - `Email UCL` - Email UCL
 
 **Note** : "Non Attr." dans les colonnes Nom/Prénom est automatiquement traité comme une attribution vacante.
+
+## 🚀 Déploiement
+
+### Déploiement sur Vercel
+
+1. Poussez votre code sur GitHub
+2. Connectez votre repository à Vercel
+3. Configurez les variables d'environnement dans Vercel
+4. Vercel déploiera automatiquement votre application
+
+Voir [GUIDE-DEPLOIEMENT.md](GUIDE-DEPLOIEMENT.md) pour plus de détails.
 
 ## 🐛 Dépannage
 

@@ -49,3 +49,6 @@ ENV/
 
 # Server
 .python-version
+
+# Vite
+.vite/

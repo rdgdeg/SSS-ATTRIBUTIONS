@@ -1,23 +1,11 @@
 {
   "version": 2,
-  "buildCommand": null,
-  "outputDirectory": ".",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/",
-      "destination": "/app-cours-vacants-complete.html"
-    },
-    {
-      "source": "/app",
-      "destination": "/app-cours-vacants-complete.html"
-    },
-    {
-      "source": "/gestion",
-      "destination": "/app-gestion-cours-vacants.html"
-    },
-    {
-      "source": "/import",
-      "destination": "/app-import-cours-vacants.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
