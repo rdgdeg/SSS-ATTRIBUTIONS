@@ -354,7 +354,7 @@ function CoursVacantRow({
   const handleCreateCandidature = async () => {
     if (!cours.id) return
     try {
-      const candidature = await createCandidatureMutation.mutateAsync({
+      await createCandidatureMutation.mutateAsync({
         cours_vacant_id: cours.id,
         nom: candidatureData.nom,
         prenom: candidatureData.prenom,
