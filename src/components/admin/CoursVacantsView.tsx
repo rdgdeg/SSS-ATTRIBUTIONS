@@ -180,7 +180,7 @@ export default function CoursVacantsView() {
               <SelectContent>
                 <SelectItem value="">Tous les départements</SelectItem>
                 {departements.map(dpt => (
-                  <SelectItem key={dpt} value={dpt}>{dpt}</SelectItem>
+                  <SelectItem key={dpt} value={dpt || ''}>{dpt}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -191,7 +191,7 @@ export default function CoursVacantsView() {
               <SelectContent>
                 <SelectItem value="">Tous les états</SelectItem>
                 {etats.map(etat => (
-                  <SelectItem key={etat} value={etat}>{etat}</SelectItem>
+                  <SelectItem key={etat} value={etat || ''}>{etat}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -263,7 +263,7 @@ export default function CoursVacantsView() {
                     key={cours.id}
                     cours={cours}
                     isSelected={selectedCours === cours.id}
-                    onToggle={() => setSelectedCours(selectedCours === cours.id ? null : cours.id)}
+                    onToggle={() => setSelectedCours(selectedCours === cours.id ? null : (cours.id || null))}
                     onUpdate={() => refetch()}
                   />
                 ))}

@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import { ReactNode } from 'react'
-import { Home, Upload, FileText, Settings } from 'lucide-react'
+import { Home, Upload, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface LayoutProps {
